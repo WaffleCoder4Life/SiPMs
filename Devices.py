@@ -30,6 +30,9 @@ class pyvisaResource:
         """Function to give a general command to instrument. cmnd formalism must be looked up from programming manual."""
         self.instr.write(f"{cmnd}")
 
+    def read(self):
+        return self.instr.read()
+
 
 class Keithley6487(pyvisaResource):
     def __init__(self):
@@ -75,7 +78,7 @@ class Keithley6487(pyvisaResource):
 
     def get_currRange(self):
         self.instr.write(":CURR:RANG?")
-        return self.instr.read()
+        return float(self.instr.read())
 
     def set_currRange(self, value):
         self.instr.write(":CURR:RANG " + str(value))
@@ -83,7 +86,7 @@ class Keithley6487(pyvisaResource):
 
     def get_voltRange(self):
         self.instr.write(":SOUR:VOLT:RANG?")
-        return self.instr.read()
+        return float(self.instr.read())
 
     def set_voltRange(self, value):
         """Allowed values 10 and 50. If other value is given, sets the value to the next lower allowed value."""
@@ -97,7 +100,7 @@ class Keithley6487(pyvisaResource):
 
     def get_currLimit(self):
         self.instr.write(":SOUR:VOLT:ILIM?")
-        return self.instr.read()
+        return float(self.instr.read())
 
     def set_currLimit(self, value):
         """Allowed values are 25uA, 250uA and 2.5mA. If some other values is given sets the value to the next lower
@@ -112,7 +115,7 @@ class Keithley6487(pyvisaResource):
 
     def get_voltage(self):
         self.instr.write(":SOUR:VOLT?")
-        return self.instr.read()
+        return float(self.instr.read())
 
     def set_voltage(self, value):
         self.instr.write(f":SOUR:VOLT {value}")

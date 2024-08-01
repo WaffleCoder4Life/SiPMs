@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.animation as animation
 import tkinter.ttk as ttk
-import pyvisa as visa
 from time import sleep, time
 import matplotlib.cm as cm
 import numpy as np
 from itertools import cycle, islice
 import threading
+from Devices import Keithley6487
+#mport pyvisa as visa
 
 class Keithley6487Pro:
     def __init__(self, root):
@@ -40,14 +41,8 @@ class Keithley6487Pro:
         self.colors = cycle(self.col1)
         self.animiter = 0
         
-        # VISA CONNECTIONS
-        self.rm = visa.ResourceManager()
-        self.instr = self.rm.open_resource("GPIB0::22::INSTR")
-        #RUN THESE AFTER START OR GET FUCKED
-        self.instr.write("*RST")  #Return 6487 to GPIB defaults, USE BEFORE DISCONNECTING SIGNALS
-        self.instr.write("SYST:ZCH OFF")
-        self.instr.write(":CURR:RANG 0.001")
-        self.instr.write(f":SOUR:VOLT:RANG " + str(50))  # Set voltage range
+        # Create Keithley6487 object
+        self.instr = Keithley6487()
 
         
         #===========================================FRAMES============================================================================================================
@@ -63,18 +58,18 @@ class Keithley6487Pro:
         self.currentLab = Label(self.infoFrame, text=f"{self.current} A", style='curr.TLabel')
         self.currentLab.grid(column=0, row=0, padx=10, pady=20)
 
-        self.instr.write(":SOUR:VOLT?")
-        self.voltage = float(self.instr.read())
+        
+        self.voltage = float(self.instr.get_voltage())
         self.voltageLab = Label(self.infoFrame, text=f'Voltage: {self.voltage} V', style='info.TLabel')
         self.voltageLab.grid(column=0, row=1, padx=10, pady=10)
 
-        self.instr.write(":SOUR:VOLT:ILIM?")
-        self.currentLimit = float(self.instr.read())
+      
+        self.currentLimit = float(self.instr.get_currLimit())
         self.currentLimitLab = Label(self.infoFrame, text=f'Current limit: {self.currentLimit} A', style='info.TLabel')
         self.currentLimitLab.grid(column=0, row=2, padx=10, pady=10)
 
-        self.instr.write(":CURR:RANG?")
-        self.measurementRange = float(self.instr.read())
+        
+        self.measurementRange = float(self.instr.get_currRange())
         self.measRanLab = Label(self.infoFrame, text=f'Measurement range: {self.measurementRange} A', style='info.TLabel')
         self.measRanLab.grid(column=0, row=3, padx=20, pady=10)
 
@@ -159,9 +154,9 @@ class Keithley6487Pro:
     
     def outputOnOff(self):
         if self.output == 0:
-            self.instr.write(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
-            self.instr.write(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
-            self.instr.write(":SOUR:VOLT:STAT ON")
+            self.instr.command(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
+            self.instr.command(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
+            self.instr.command(":SOUR:VOLT:STAT ON")
             self.output = 1
             self.running = True
             self.updateCurrent()
@@ -170,74 +165,63 @@ class Keithley6487Pro:
 
         elif self.output == 1:
             self.running = False
-            self.instr.write(":SOUR:VOLT:STAT OFF")
+            self.instr.command(":SOUR:VOLT:STAT OFF")
             self.output = 0
             self.outputOff.grid_remove()
             self.outputOn.grid(column=3, row=1)
 
 
-        
+    
 
     def setVoltage(self, event=None):
         self.voltage = self.setVentry.get()
-        self.instr.write(f":SOUR:VOLT {self.voltage}")
-        self.instr.write(":SOUR:VOLT?")
+        self.instr.command(f":SOUR:VOLT {self.voltage}")
+        self.instr.command(":SOUR:VOLT?")
         self.voltage = float(self.instr.read())
         self.voltageLab.config(text=f'Voltage: {self.voltage} V')
         self.setVentry.delete(0, 'end')
         #sleep(2)
     
     def setCurrentLimit(self, event=None):
-        self.currentLimit = self.setILimentry.get()
-        if float(self.currentLimit) < 25e-6:
-            self.instr.write(":SOUR:VOLT:ILIM 25e-6")
-            self.instr.write(":SOUR:VOLT:ILIM?")
-            self.currentLimit = float(self.instr.read())
-            self.currentLimitLab.config(text=f"Current limit: {self.currentLimit} A")
-        elif float(self.currentLimit) > 25e-3:
-            self.instr.write(":SOUR:VOLT:ILIM 25e-3")
-            self.instr.write(":SOUR:VOLT:ILIM?")
-            self.currentLimit = float(self.instr.read())
-            self.currentLimitLab.config(text=f"Current limit: {self.currentLimit} A")
-        else:
-            self.instr.write(f":SOUR:VOLT:ILIM {self.currentLimit}")
-            self.instr.write(":SOUR:VOLT:ILIM?")
-            self.currentLimit = float(self.instr.read())
-            self.currentLimitLab.config(text=f"Current limit: {self.currentLimit} A")
+        self.currentLimit = float(self.setILimentry.get())
+        self.instr.set_currLimit(self.currentLimit)
+        self.currentLimit = self.instr.get_currLimit()
+        self.currentLimitLab.config(text=f"Current limit: {self.currentLimit:.2e} A")
         self.setILimentry.delete(0, 'end')
+
     
     def setMeasurementRange(self, event=None):
         self.measurementRange = self.setMeasRanentry.get()
         self.setMeasRanentry.delete(0, 'end')
         if float(self.measurementRange) < -0.021:
-            self.instr.write(f":CURR:RANG -0.021")
-            self.instr.write(":CURR:RANG?")
+            self.instr.command(f":CURR:RANG -0.021")
+            self.instr.command(":CURR:RANG?")
             self.measurementRange = float(self.instr.read())
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')
         elif float(self.measurementRange) > 0.021:
-            self.instr.write(f":CURR:RANG 0.021")
-            self.instr.write(":CURR:RANG?")
+            self.instr.command(f":CURR:RANG 0.021")
+            self.instr.command(":CURR:RANG?")
             self.measurementRange = float(self.instr.read())
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')
         else:
-            self.instr.write(f":CURR:RANG {self.measurementRange}")
-            self.instr.write(":CURR:RANG?")
+            self.instr.command(f":CURR:RANG {self.measurementRange}")
+            self.instr.command(":CURR:RANG?")
             self.measurementRange = float(self.instr.read())
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')
 
 
     def pause(self):
         self.time2 = time()
-        self.instr.write(":SOUR:VOLT:STAT OFF")
+        self.instr.command(":SOUR:VOLT:STAT OFF")
         self.running = False
         
 
     def run(self):
-        self.instr.write(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
-        self.instr.write(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
-        self.instr.write(":SOUR:VOLT:STAT ON")
-        #self.instr.write(f":SOUR:VOLT:ILIM {self.currentLimit}") # Set the maximum current limit
-        #self.instr.write(f":SENS:RANG {self.measurementRange}")
+        self.instr.command(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
+        self.instr.command(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
+        self.instr.command(":SOUR:VOLT:STAT ON")
+        #self.instr.command(f":SOUR:VOLT:ILIM {self.currentLimit}") # Set the maximum current limit
+        #self.instr.command(f":SENS:RANG {self.measurementRange}")
         if self.time2 is None:
             self.time1 = time()
         else:
@@ -248,8 +232,8 @@ class Keithley6487Pro:
 
     def updateCurrent(self):
         if self.running:
-            self.instr.write(":INIT") #TRIGGER MEASUREMENT
-            self.instr.write(":SENS:DATA?") # data plz UwU
+            self.instr.command(":INIT") #TRIGGER MEASUREMENT
+            self.instr.command(":SENS:DATA?") # data plz UwU
             self.voltData = float(self.instr.read())
             self.currentLab.config(text=f'{self.voltData:.3e} A')
             self.root.after(1000, self.updateCurrent)  # update plot every 100 ms
@@ -263,8 +247,7 @@ class Keithley6487Pro:
             self.fig.savefig(filename)
     
     def DESTRUCTION(self):
-        self.instr.write(":SOUR:VOLT:STAT OFF")
-        self.instr.close()
+        self.instr.closeResource()
         self.root.quit()
 
     def clear(self):
@@ -282,8 +265,8 @@ class PlotWindow:
         self.new_window = tk.Toplevel(self.parent.root)
         self.new_window.title("IV plot")
 
-        self.parent.instr.write(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
-        self.parent.instr.write(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
+        self.parent.instr.command(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
+        self.parent.instr.command(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
 
 
         self.fig, self.ax = plt.subplots()
