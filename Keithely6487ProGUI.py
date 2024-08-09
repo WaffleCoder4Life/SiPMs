@@ -11,6 +11,7 @@ import numpy as np
 from itertools import cycle, islice
 import threading
 from Devices import Keithley6487
+import dataHandling as data
 #mport pyvisa as visa
 
 class Keithley6487Pro:
@@ -31,7 +32,10 @@ class Keithley6487Pro:
         self.time2 = None
         self.output = 0
         self.voltData = None
-        self.root.protocol('WM_DELETE_WINDOW', self.DESTRUCTION)
+        self.root.protocol('WM_DELETE_WINDOW', self.DESTRUCTION) # pressing 'x' closes
+        self.ivOpen = False
+        self.voltageList = []
+        self.currentList = []
 
         self.plot_window = None
 
@@ -51,6 +55,9 @@ class Keithley6487Pro:
         self.button_frame.grid(column=0, row=1)
         self.infoFrame = Frame(self.root)
         self.infoFrame.grid(column=0, row=0)
+        self.sweepFrame = Frame(self.root)
+        self.sweepFrame.grid(column=0, row = 3, pady=40)
+        self.sweepFrame.grid_remove()
 
         #=========================================INFO LABELS=====================================================================================================================
 
@@ -80,23 +87,33 @@ class Keithley6487Pro:
         #self.saveBut = Button(self.button_frame, text="Save", command=self.save, style='my.TButton')
         #self.saveBut.grid(column=3, row=3)
 
-        #CLOSE PROGRAM
-        self.stop_button = Button(self.button_frame, text="Close program", command=self.DESTRUCTION, style='my.TButton')
-        self.stop_button.grid(column=3, row=10, padx=20, pady=20)
+        #CLOSE PROGRAM, nod needed 'x' does the same
+        #self.stop_button = Button(self.button_frame, text="Close program", command=self.DESTRUCTION, style='my.TButton')
+        #self.stop_button.grid(column=3, row=10, padx=20, pady=20)
 
 
         #SHOW PLOT
 
-        self.plotBut = Button(self.button_frame, text="Open plot", command=self.openPlotScreen, style='my.TButton')
-        self.plotBut.grid(column=4, row=1, padx=10)
+        self.plotBut = Button(self.button_frame, text="Show IV-plot", command=self.openPlotScreen, style='my.TButton')
+        self.plotBut.grid(column=4, row=0, padx=10)
 
         #OUTPUT
         self.outputOff = Button(self.button_frame, text="Output Off", command=self.outputOnOff, style='my.TButton')
-        self.outputOff.grid(column=3, row=1)
+        self.outputOff.grid(column=3, row=0, padx=10)
         self.outputOff.grid_remove()
 
         self.outputOn = Button(self.button_frame, text="Output On", command=self.outputOnOff, style='my.TButton')
-        self.outputOn.grid(column=3, row=1)
+        self.outputOn.grid(column=3, row=0, padx=10)
+
+        #IV-sweep close
+        self.sweepButC = Button(self.button_frame, text = "Close IV-sweep", command = self.ivsweepOpen, style = 'my.TButton')
+        self.sweepButC.grid(column=3, row=1)
+        self.sweepButC.grid_remove()
+
+        #IV-sweep open
+        self.sweepBut = Button(self.button_frame, text = "Open IV-sweep", command = self.ivsweepOpen, style = 'my.TButton')
+        self.sweepBut.grid(column=3, row=1)
+
 
         #RUN
         #self.runBut = Button(self.button_frame, text="Run", command=self.run, style='my.TButton')
@@ -113,35 +130,164 @@ class Keithley6487Pro:
         #RGB
         #self.rgbbut = Button(self.button_frame, text='RGB', command=self.setRgb, style='my.TButton')
         #self.rgbbut.grid(column=4, row=0)
+
+
+        #=========================================SWEEP PROGRAM==================================================================================================================
         
+        self.rowInd = 0
+        self.cpationLabel = Label(self.sweepFrame, text="IV-sweep", style="curr.TLabel").grid(column=1, row=self.rowInd, pady=10)
+        
+        #======ROW 1=======
+        self.rowInd += 1
+
+        self.startLabel = Label(self.sweepFrame, text = "Sweep start:", style="my.TLabel").grid(column=0, row=self.rowInd)
+        self.setStartV =Entry(self.sweepFrame)
+        self.setStartV.grid(column=1, row=self.rowInd)
+        self.setStartV.bind('<Return>', self.setStart)
+        self.startV = '-'
+        self.startVLab = Label(self.sweepFrame, text=f"{self.startV} V", style='info.TLabel')
+        self.startVLab.grid(column=2, row=self.rowInd, padx=10, pady=2)
+
+        self.sweepStartBut = Button(self.sweepFrame, text="Start IV-sweep", command = self.runThread, style = 'my.TButton')
+        self.sweepStartBut.grid(column=3, row=self.rowInd, padx=20)
+
+        self.abortBut = Button(self.sweepFrame, text="Abort", command=self.doAbort, style = 'my.TButton')
+        self.abortBut.grid(column=4, row=self.rowInd)
+        self.abortBut.config(state='disabled')
+
+        #======ROW 2=====
+        self.rowInd += 1
+
+        self.stopLabel = Label(self.sweepFrame, text = "Sweep end:", style="my.TLabel").grid(column=0, row=self.rowInd)
+        self.setStopV = Entry(self.sweepFrame)
+        self.setStopV.grid(column=1, row=self.rowInd)
+        self.setStopV.bind('<Return>', self.setStop)
+        self.stopV = '-'
+        self.stopVLab = Label(self.sweepFrame, text=f"{self.stopV} V", style='info.TLabel')
+        self.stopVLab.grid(column=2, row=self.rowInd, padx=10, pady=2)
+
+        self.quickSweepStartBut = Button(self.sweepFrame, text="Quick sweep", command = self.quickSweep, style = 'my.TButton')
+        self.quickSweepStartBut.grid(column=3, row=self.rowInd)
+
+        self.plotBut = Button(self.sweepFrame, text="Scatter plot", command = self.scatterPlot, style = 'my.TButton')
+        self.plotBut.grid(column = 4, row =self.rowInd)
+
+        #=====ROW 3=====
+        self.rowInd += 1
+
+        self.stepLabel = Label(self.sweepFrame, text = "Sweep step:", style="my.TLabel").grid(column=0, row=self.rowInd)
+        self.setStepV = Entry(self.sweepFrame)
+        self.setStepV.grid(column=1, row=self.rowInd)
+        self.setStepV.bind('<Return>', self.setStep)
+        self.stepV = '-'
+        self.stepVLab = Label(self.sweepFrame, text = f"{self.stepV} V", style='info.TLabel')
+        self.stepVLab.grid(column=2, row=self.rowInd, padx=10, pady=2)
+
+        self.saveBut = Button(self.sweepFrame, text = "Save data", command = self.saveData, style = 'my.TButton')
+        self.saveBut.grid(column=4, row = self.rowInd)
+
+        #====ROW 4=====
+        self.rowInd += 1
+        
+        self.averagLabel = Label(self.sweepFrame, text = "Average of ", style='my.TLabel').grid(column=0, row=self.rowInd)
+        self.setAveg = Entry(self.sweepFrame)
+        self.setAveg.grid(column=1, row=self.rowInd)
+        self.setAveg.bind('<Return>', self.setAverag)
+        self.aveg = 1
+        self.setAvegLab = Label(self.sweepFrame, text=f"{self.aveg} points", style='info.TLabel')
+        self.setAvegLab.grid(column=2, row=self.rowInd, padx=10, pady=2)
+
+        
+        
+
+
+
         #=========================================VOLTAGE PROGRAM================================================================================================================
 
         self.setVlabel = Label(self.button_frame, text="Set voltage", style='my.TLabel')
-        self.setVlabel.grid(column=0, row=0)
+        self.setVlabel.grid(column=0, row=0, pady = 2)
         self.setVentry = Entry(self.button_frame)
-        self.setVentry.grid(column=1, row=0)
+        self.setVentry.grid(column=1, row=0, pady= 2)
         self.setVentry.bind('<Return>', self.setVoltage)
         
 
         self.setILimlabel = Label(self.button_frame, text="Set current limit", style='my.TLabel')
-        self.setILimlabel.grid(column=0, row=1)
+        self.setILimlabel.grid(column=0, row=1, pady = 2)
         self.setILimentry = Entry(self.button_frame)
-        self.setILimentry.grid(column=1, row=1)
+        self.setILimentry.grid(column=1, row=1, pady = 2)
         self.setILimentry.bind('<Return>', self.setCurrentLimit)
         
 
         self.setMeasRanlabel = Label(self.button_frame, text="Measurement range", style='my.TLabel')
-        self.setMeasRanlabel.grid(column=0, row=2)
+        self.setMeasRanlabel.grid(column=0, row=2, pady = 2)
         self.setMeasRanentry = Entry(self.button_frame)
-        self.setMeasRanentry.grid(column=1, row=2)
+        self.setMeasRanentry.grid(column=1, row=2, pady = 2)
         self.setMeasRanentry.bind('<Return>', self.setMeasurementRange)
 
         
-        
-        
+    #======================================================THREAING=================================================================
+
+    def runThread(self):
+        self.sweepStartBut.config(state='disabled')
+        self.abortBut.config(state='normal')
+        threading.Thread(target=self.startIVsweep).start()
+
     
     #=======================================================FUNCTIONS==================================================================================================
     
+    def ivsweepOpen(self):
+        if self.ivOpen == False:
+            self.ivOpen = True
+            self.sweepBut.grid_remove()
+            self.sweepButC.grid(column=3, row=1)
+            self.sweepFrame.grid(column=0, row=2)
+
+        elif self.ivOpen == True:
+            self.ivOpen = False
+            self.sweepButC.grid_remove()
+            self.sweepBut.grid(column=3, row=1)
+            self.sweepFrame.grid_remove()
+
+    def startIVsweep(self):
+        self.voltageList, self.currentList = self.instr.IVsweep(float(self.startV), float(self.stopV), float(self.stepV), int(self.aveg))
+        self.abortBut.config(state='disabled')
+        self.sweepStartBut.config(state='normal')
+
+    def quickSweep(self):
+        self.voltageList, self.currentList = self.instr.IVsweep(float(self.startV), float(self.stopV), 1, 1, quickie=True)
+
+    def scatterPlot(self):
+        data.IVscatter(self.voltageList, self.currentList, "red")
+
+    def setStart(self, event = None):
+        self.startV = self.setStartV.get()
+        self.startVLab.config(text=f'{self.startV} V')
+        self.setStartV.delete(0, 'end')
+
+    def setStop(self, event = None):
+        self.stopV = self.setStopV.get()
+        self.stopVLab.config(text=f'{self.stopV} V')
+        self.setStopV.delete(0, 'end')
+
+    def setStep(self, event = None):
+        self.stepV = self.setStepV.get()
+        self.stepVLab.config(text = f"{self.stepV} V")
+        self.setStepV.delete(0, 'end')
+
+    def setAverag(self, event = None):
+        self.aveg = self.setAveg.get()
+        self.setAvegLab.config(text=f"{self.aveg} points")
+        self.setAveg.delete(0, 'end')
+
+    def doAbort(self):
+        self.instr.abort()
+        self.sweepStartBut.config(state='normal')
+        self.abortBut.config(state='disabled')
+
+    def saveData(self):
+        data.saveIVscatter(self.voltageList, self.currentList)
+
+
     def setRgb(self):
         if self.rgb is False:
             self.rgb = True
@@ -161,17 +307,17 @@ class Keithley6487Pro:
             self.running = True
             self.updateCurrent()
             self.outputOn.grid_remove()
-            self.outputOff.grid(column=3, row=1)
+            self.outputOff.grid(column=3, row=0)
 
         elif self.output == 1:
             self.running = False
             self.instr.command(":SOUR:VOLT:STAT OFF")
             self.output = 0
             self.outputOff.grid_remove()
-            self.outputOn.grid(column=3, row=1)
+            self.outputOn.grid(column=3, row=0)
 
 
-    
+   
 
     def setVoltage(self, event=None):
         self.voltage = self.setVentry.get()

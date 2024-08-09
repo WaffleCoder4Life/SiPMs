@@ -1,5 +1,6 @@
 import pyvisa as visa
 import numpy as np
+from time import sleep
 
 
 class pyvisaResource:
@@ -7,6 +8,7 @@ class pyvisaResource:
     def __init__(self):
         self.instr = None
         self.rm = visa.ResourceManager()
+        self.aborted = False
 
     def connectDevice(self, name):
         """General function for connecting devices. Compares given name to the IDN of all available visa connections.
@@ -33,6 +35,9 @@ class pyvisaResource:
     def read(self):
         return self.instr.read()
 
+    def abort(self):
+        self.aborted=True
+        print("ABORTED!!!")
 
 class Keithley6487(pyvisaResource):
     def __init__(self):
@@ -57,6 +62,8 @@ class Keithley6487(pyvisaResource):
         self.currLimit = 25e-3
         self.voltage = 0
 
+        self.isOn = False
+
 
 
     def closeResource(self):
@@ -65,14 +72,16 @@ class Keithley6487(pyvisaResource):
 
     def powerOn(self):
         self.instr.write(":SOUR:VOLT:STAT ON")
+        self.isOn = True
     def powerOff(self):
         self.instr.write(":SOUR:VOLT:STAT OFF")
+        self.isOn = False
 
     def readCurrentASCii(self):
-        # Triggers a single measurement and returns the current as a string
+        """Triggers a single measurement and returns the current as a float"""
         self.instr.write(":INIT") # Triggers a measurement
         self.instr.write(":SENS:DATA?") # Asks for data, only stores one set of data
-        return self.instr.read() # Returns the data read from the device
+        return float(self.instr.read()) # Returns the data read from the device
 
 # ---- Getters and Setters for basic properties ----
 
@@ -121,6 +130,79 @@ class Keithley6487(pyvisaResource):
         self.instr.write(f":SOUR:VOLT {value}")
         self.voltage = self.get_voltage()
 
+
+    def IVsweep(self, startV, endV, stepV, mesPerV = 1, quickie: bool = False, reverse: bool = False):
+        """Perfom IV-sweep from 'startV' to 'endV'. Takes 'mesPerV' measurements every 'stepV' voltage and returns the average current for each voltage.
+           Returns the data as two lists; voltage, current. stepV minimum allowed value for 50 V range 0.001 V. Optional parameters; quickie (True/False) overrun 
+           stepV and mesPerV for a quick scan with 10 measurement points. Useful for locating breakdown voltage and tuning current limit etc.
+           reverse (True/False) to execute the sweep in reverse."""
+        if quickie:
+            if self.isOn == False:
+                self.powerOn()
+            voltage = startV
+            stepV = (endV - startV) / 10
+            currList, voltList = [], []
+            self.set_voltage(voltage) #
+            self.readCurrentASCii() # These two make sure the first measurement is also correct
+            print("UPDATETD")
+            while voltage <= endV:
+                self.set_voltage(voltage)
+                sleep(0.1)
+                voltList.append(voltage)
+                currList.append(self.readCurrentASCii())
+                voltage += stepV
+            self.powerOff()
+            return voltList, currList
+        else:
+            if reverse:
+                if self.isOn == False:
+                    self.powerOn()
+                voltage = endV
+                voltList, currList = [], []
+                self.set_voltage(voltage) #
+                self.readCurrentASCii() # These two make sure the first measurement is also correct
+                while startV <= voltage:
+                    if self.aborted:
+                        self.aborted = False
+                        break
+                    self.set_voltage(voltage)
+                    sleep(0.5) # sleepy time
+                    tempCurr = []
+                    for i in range(mesPerV): # loop for average current
+                        tempCurr.append(self.readCurrentASCii()) # single current measurement
+                        sleep(0.1)
+                    currList.append(sum(tempCurr)/(len(tempCurr)))
+                    voltList.append(voltage)
+                    voltage -= stepV
+                currList.reverse()
+                voltList.reverse()
+                return voltList, currList
+
+            else:
+                if self.isOn == False:
+                    self.powerOn()
+                voltage = startV
+                voltList, currList = [], []
+                self.set_voltage(voltage) #
+                self.readCurrentASCii() # These two make sure the first measurement is also correct
+                while voltage <= endV:
+                    if self.aborted:
+                        self.aborted=False
+                        break
+                    self.set_voltage(voltage)
+                    sleep(0.5) # sleepy time
+                    tempCurr = []
+                    for i in range(mesPerV): # loop for average current
+                        tempCurr.append(self.readCurrentASCii()) # single current measurement
+                        sleep(0.1)
+                    currList.append(sum(tempCurr)/(len(tempCurr)))
+                    voltList.append(voltage)
+                    voltage += stepV
+                self.powerOff()
+                return voltList, currList
+                    
+
+        
     
 class DSOX1102G(pyvisaResource):
     def __init__(self):

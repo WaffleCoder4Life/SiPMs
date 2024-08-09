@@ -11,6 +11,8 @@ from datetime import date
 import matplotlib.pyplot as plt
 
 
+#=========================================FOLDER HANDLING============================================================================
+
 def ChooseFolder(initdir = "..", title = ""):
     """Open folder window to choose a folder. Returns folder path."""
     # Initialise tkinter window
@@ -60,7 +62,54 @@ def ChooseFilesDifferentFolders(initdir = "..", text = "Choose files", filetypes
             allFiles.append(file)
     return allFiles
 
+def ChooseFiles(initdir = "..", text = 'Choose files', filetypes = [('csv files', '*.csv')]) -> Tuple[list, str]:
+    """Choose a csv file and ask wether to add more files. Returns tuple[list, string] where string = 'yes' or 'no'."""
+    root = tk.Tk()
+    root.wm_attributes('-topmost', 1)
+    root.tk.eval(f'tk::PlaceWindow {root._w} center')
+    root.withdraw()
+    files = filedialog.askopenfilenames(initialdir = initdir,title=text, filetypes = filetypes)
+    return list(files)
+
 def saveOscilloImage(path, name, data):
     f = open(f"{path}/{name}.png", "wb")
     f.write(data)
     f.close()
+
+
+#===========================================IV sweep data handling======================================================================================
+
+
+
+def IVscatter(voltList, curList, color):
+    "Simple plot to check IV curve"
+    plt.scatter(voltList, curList, s=10, marker='s', color=color)
+    plt.show()
+
+def saveIVscatter(voltList, curList):
+    folder = ChooseFolder(initdir="./dataCollection",title="Save to folder...")
+    fileName = inputText(title="file name")
+    while nameIsTaken(folder, fileName):
+        print("Filename taken!")
+        folder = ChooseFolder(initdir="./dataCollection",title="Save to folder...")
+        fileName = inputText(title="file name")
+    with open(folder+"/"+fileName+".csv", "w") as file:
+        for i in range(len(voltList)):
+            file.write(str(voltList[i])+";"+str(curList[i])+"\n")
+
+
+def readIVsweepFile(filePath):
+    """Opens a CSV file, unpacks the voltage and current readings and returns them as separete float lists."""
+    voltageList = []
+    currentList = []
+    with open(filePath, "r") as file:
+        for row in file:
+            row.strip("\n")
+            rowAsList = row.split(";")
+            voltageList.append(float(rowAsList[0]))
+            currentList.append(float(rowAsList[1]))
+    return voltageList, currentList
+
+
+
+
