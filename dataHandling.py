@@ -9,6 +9,7 @@ from typing import Tuple
 from tkinter import *
 from datetime import date
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 #=========================================FOLDER HANDLING============================================================================
@@ -112,4 +113,41 @@ def readIVsweepFile(filePath):
 
 
 
+def derivative(xdata, ydata):
+    derivatives = []
+    x = 0
+    while x < len(xdata)-1:
+        #print(ydata[x+1]-ydata[x])
+        #print(xdata[x+1]-xdata[x])
+        der = (ydata[x+1]-ydata[x]) / (xdata[x+1]-xdata[x])
+        derivatives.append(der)
+        x += 1
+    return derivatives
 
+
+# Chat GPT generated stuff to pick a point
+class PointPicker:
+    def __init__(self, x, y, selection):
+        self.x = x
+        self.y = y
+        self.selected_index = None
+        self.fig, self.ax = plt.subplots()
+        self.scatter = self.ax.scatter(x, y)
+        self.ax.set_title(selection)
+        self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+        plt.show()
+
+    def on_click(self, event):
+        if event.inaxes != self.ax:
+            return
+        
+        # Calculate the distances between the click and all points
+        distances = np.hypot(self.x - event.xdata, self.y - event.ydata)
+        self.selected_index = np.argmin(distances)
+        
+        print(f'Selected point index: {self.selected_index}')
+        plt.close(self.fig)  # Close the plot window
+
+def pick_point_from_scatter(x, y, title):
+    picker = PointPicker(x, y, title)
+    return picker.selected_index

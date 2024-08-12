@@ -350,10 +350,12 @@ class Keithley6487Pro:
             self.measurementRange = float(self.instr.read())
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')
         else:
-            self.instr.command(f":CURR:RANG {self.measurementRange}")
-            self.instr.command(":CURR:RANG?")
+            self.instr.command(f":SENS:RANG {self.measurementRange}")
+            self.instr.command(":SENS:RANG?")
             self.measurementRange = float(self.instr.read())
+            print(self.measurementRange)
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')
+            print("here")
 
 
     def pause(self):

@@ -3,6 +3,9 @@ from tkinter.ttk import *
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import numpy as np
+import scipy.optimize
+from sympy import Symbol
+from sympy.solvers import solve
 
 import dataHandling as data
 
@@ -112,7 +115,8 @@ class App:
                     self.xMin = volt
                 if volt > self.xMax:
                     self.xMax = volt
-            self.ax.scatter(voltList, curList, color = file.getColor())
+            self.ax.scatter(voltList, curList, color = file.getColor(), label = file.getName())
+        self.ax.legend()
             
 
         self.canvas.draw()
@@ -140,7 +144,7 @@ class File:
     def __init__(self, parent, pathName: str, parentFrame, id = 0):
         self.parent = parent
         self.id = id
-        self.name = pathName.split("/")[-1]
+        self.name = pathName.split("/")[-1][:-4]
         self.color = "red"
 
         # Reads the data and saves it as float lists
@@ -196,12 +200,15 @@ class File:
         self.colorButton["menu"] = self.menu
 
 
-        
-        self.SqrtButton = Checkbutton(self.button_frame, text = f"Square root", command=self.squareRoot)
+        self.uselesVar = tk.IntVar(value = 0) # Remove black box
+        self.SqrtButton = Checkbutton(self.button_frame, text = f"Square root", command=self.squareRoot, variable = self.uselesVar)
         self.SqrtButton.grid(row = 0, column = 1)
 
+        self.bdownBut = Button(self.button_frame, text = "Breakdown voltage", command = self.breakdown)
+        self.bdownBut.grid(row=0, column=2)
+
         self.showhide_button = Button(self.button_frame, text="Delete", command=self.killSelf)
-        self.showhide_button.grid(row=0, column=2, padx=5)
+        self.showhide_button.grid(row=0, column=3, padx=5)
 
     
     def print(self):
@@ -219,6 +226,53 @@ class File:
         return self.sqrtCurList
     def getIsSqrt(self):
         return self.isSqrt
+    def getName(self):
+        return str(self.name)
+    
+    def line(self, x, a, b):
+        return a*x + b
+    
+    def bdVolt(self):
+        line1start = data.pick_point_from_scatter(self.voltList, self.sqrtCurList, "Choose line 1 starting point")
+        line1end = data.pick_point_from_scatter(self.voltList, self.sqrtCurList, "Choose line 1 ending point")
+        line2start = data.pick_point_from_scatter(self.voltList, self.sqrtCurList, "Choose line 2 starting point")
+        line2end = data.pick_point_from_scatter(self.voltList, self.sqrtCurList, "Choose line 2 ending point")
+
+        voltResult = scipy.optimize.curve_fit(self.line, xdata = self.voltList[line1start:line1end+1], ydata = self.sqrtCurList[line1start:line1end+1]) # Gives parameters for a line fit, check ctarting point from image
+        voltResult2 = scipy.optimize.curve_fit(self.line, xdata = self.voltList[line2start:line2end+1], ydata = self.sqrtCurList[line2start:line2end+1])
+        print(voltResult) 
+        x = Symbol("x")
+        lineFit = self.line(x, voltResult[0][0], voltResult[0][1]) # arguments x, a (slope) and b (intercept)
+        lineFit2 = self.line(x, voltResult2[0][0], voltResult2[0][1])
+        breakdownResult = solve(lineFit-lineFit2, x) # solves x from lineFit and lineFit2 intercept
+        print(breakdownResult)
+
+    def breakdown(self, limit = 0.001):
+        derivatives = data.derivative(self.voltList, self.sqrtCurList)
+        print(derivatives)
+        i = 0
+        while i < len(derivatives)-1:
+            if derivatives[i] > limit:
+                bdpoint = i
+                break
+            i += 1
+        firstLineEnd = bdpoint-1
+        secondLineStart = bdpoint+1
+        print(firstLineEnd, secondLineStart)
+        print(self.voltList[firstLineEnd])
+        print(self.voltList[secondLineStart])
+
+        voltResult = scipy.optimize.curve_fit(self.line, xdata = self.voltList[:firstLineEnd], ydata = self.sqrtCurList[:firstLineEnd]) # Gives parameters for a line fit, check ctarting point from image
+        voltResult2 = scipy.optimize.curve_fit(self.line, xdata = self.voltList[secondLineStart:], ydata = self.sqrtCurList[secondLineStart:])
+        print(voltResult) 
+        x = Symbol("x")
+        lineFit = self.line(x, voltResult[0][0], voltResult[0][1]) # arguments x, a (slope) and b (intercept)
+        lineFit2 = self.line(x, voltResult2[0][0], voltResult2[0][1])
+        breakdownResult = solve(lineFit-lineFit2, x) # solves x from lineFit and lineFit2 intercept
+        print(breakdownResult)
+
+    
+
     
     def squareRoot(self):
         if self.isSqrt == False:

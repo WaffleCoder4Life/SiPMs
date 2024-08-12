@@ -144,7 +144,6 @@ class Keithley6487(pyvisaResource):
             currList, voltList = [], []
             self.set_voltage(voltage) #
             self.readCurrentASCii() # These two make sure the first measurement is also correct
-            print("UPDATETD")
             while voltage <= endV:
                 self.set_voltage(voltage)
                 sleep(0.1)
@@ -219,6 +218,9 @@ class DSOX1102G(pyvisaResource):
 
     def displayOff(self, channel: int):
         self.instr.write(":CHANnel" + str(channel) + ":DISPlay 0")
+
+    def displayOn(self, channel: int):
+        self.instr.write(":CHANnel" + str(channel) + ":DISPlay 1")
 
     def setDisplay(self, channel: int, voltageRange_V: float, timeRange_s: float):
         """Sets voltage and time ranges for chosen channel and turns it on. 
