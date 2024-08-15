@@ -10,7 +10,10 @@ from tkinter import *
 from datetime import date
 import matplotlib.pyplot as plt
 import numpy as np
-
+from scipy.signal import *
+from collections import Counter
+import pandas as pd
+import json
 
 #=========================================FOLDER HANDLING============================================================================
 
@@ -72,11 +75,154 @@ def ChooseFiles(initdir = "..", text = 'Choose files', filetypes = [('csv files'
     files = filedialog.askopenfilenames(initialdir = initdir,title=text, filetypes = filetypes)
     return list(files)
 
+def returnToday():
+    today = date.today()
+    day = "{:02d}".format(today.day)
+    month = "{:02d}".format(today.month)
+    return day + month + str(today.year)
+
+
+#====================================OSCILLOSCOPE STUFF===========================================================
+
+
+def photoDistToCSV(name, photoCountData, header="", path="./dataCollection"):
+    fileName = returnToday() + name +"1"
+    i = 1
+    while nameIsTaken(path, fileName+".csv"):
+        fileName = fileName[:-1]
+        fileName += str(i)
+        i += 1
+    np.savetxt(path+"/"+fileName+".csv", photoCountData, header=header, delimiter=",")
+
+def CSVtoPhotoDist(pathToFile):
+    return np.genfromtxt(pathToFile, delimiter=",")
+
 def saveOscilloImage(path, name, data):
     f = open(f"{path}/{name}.png", "wb")
     f.write(data)
     f.close()
 
+def oscilloPeakCounter(voltData, peakHeight, distance, prominence):
+    peaks = find_peaks(voltData, height = peakHeight, distance = distance, prominence=prominence)
+    print(peaks[0])
+    print(f"{len(peaks[0])} fotons detected")
+    return len(peaks[0])
+
+def peakCounter(voltData, peakHeight, distance, prominence):
+    """Modified peak counter to only use left hand sided prominence for filtering peaks."""
+    peaks, _ = find_peaks(voltData, height = peakHeight, distance = distance, prominence=0)
+    _ , left_bases, _ = peak_prominences(voltData, peaks)
+    left_prominences = []
+    print(f"Peaks before filter: {peaks}")
+    print(f"Left bases: {left_bases}")
+    for i in range(len(peaks)):
+        left_prominences.append(voltData[peaks[i]] - voltData[left_bases[i]])
+    fotons = 0
+    truePeaks = []
+    leftProm = []
+    truePeakProm = []
+    for i in range(len(left_prominences)):
+        if left_prominences[i] > prominence:
+            fotons += 1
+            truePeaks.append(peaks[i])
+            leftProm.append(left_bases[i])
+            truePeakProm.append(left_prominences[i])
+    print(f"{fotons} fotons detected")
+    print(f"Peak locatins {truePeaks}")
+    print(f"Left base locations {leftProm}")
+    print(f"Peak LHS prominences {truePeakProm}")
+
+    
+    return fotons
+
+
+
+def plotPhotonDistribution(photonDistribution):
+    """Plots the poissonian distribution for mean number of photons in the pulse and the measured data."""
+    photonCounts = Counter(photonDistribution) 
+    print(photonCounts)
+
+    # Counts mean number of photons in photonDistribution
+    poisson_lambda = 0
+    for key in photonCounts:
+        poisson_lambda += int(key)*int(photonCounts[key])
+    poisson_lambda /= len(photonDistribution)
+    print(f"Mean value of photons {poisson_lambda}")
+
+    poisdata = np.random.poisson(poisson_lambda, 10000*len(photonDistribution)) #Create a distribution for counted mean number of photons
+
+    labels, counts = np.unique(photonDistribution, return_counts=True)
+    plt.bar(labels, counts, width = 1, color = "darkorange", edgecolor = "black", align='center', linestyle = "--", label = "measurement")
+    plotLabels = [point for point in range(-1, int(labels[-1]+1), 1)]
+    plt.gca().set_xticks(plotLabels)
+    
+    labels2, counts2 = np.unique(poisdata, return_counts=True)
+    counts2 = [point/10000 for point in counts2[:18]]
+    labels2 = [point for point in range(-1, len(counts2), 1)]
+    counts2.insert(0, 0)
+    plt.step(labels2, counts2, "k", linewidth = 1, where = "mid", label = "Poissonian fit $\\mathrm{\\lambda}$="+str(poisson_lambda))
+    
+    plt.xlabel("photoelectron")
+    plt.ylabel("counts")
+    plt.legend()
+    plt.xlim(-0.5, int(labels[-1])+1)
+    plt.show()
+    return poisson_lambda
+
+def createPhotonsDict():
+    """Counts the mean number of photons (lambda) from each photon distribution. Saves them to dictionary with bias voltage as key and lambda as value.
+    Keys are typed in manually. Returns the dictionary sorted by key values (bias voltages)."""
+    filePaths = ChooseFiles(initdir="./dataCollection", text = "Choose distributions to count mean number of photons")
+    meanPhotonsDict = {}
+    for file in filePaths:
+        photoDist = CSVtoPhotoDist(file)
+        photonCounts = Counter(photoDist)
+        # Counts mean number of photons in photonDistribution
+        poisson_lambda = 0
+        for key in photonCounts:
+            poisson_lambda += int(key)*int(photonCounts[key])
+        poisson_lambda /= len(photoDist)
+        biasVoltage = str(inputText(title=f"Enter BIAS VOLTAGE for file {file[-18:-3]}"))
+        meanPhotonsDict[biasVoltage] = poisson_lambda
+    meanPhotonsDict = dict(sorted(meanPhotonsDict.items()))
+    print(meanPhotonsDict)
+    return meanPhotonsDict
+
+def writeDictJson(dictionary, initdir = "./dataCollection"):
+    """Save a dictionary to json file"""
+    fileName = inputText(title="FILE NAME")
+    with open(initdir + "/" + fileName+".json", "w") as file:
+        json.dump(dictionary, file)
+
+def readDictJson(initdir = "./dataCollection", filePath = None):
+    """Choose a SINGLE json file to open and returns a dictionary."""
+    if filePath is not None:
+        with open(filePath, "r") as f:
+            dicti = json.load(f)
+        return dicti
+    else:
+        file = ChooseFiles(initdir=initdir, text = "Choose a json file", filetypes=(("Json File", "*.json"),))[0]
+        with open(file, "r") as f:
+            dicti = json.load(f)
+        return dicti
+
+def relativePDEdict(meanPhotosDict):
+    """Calculate relative PDE from mean number of photons. Uses the smallest photon count as the reference point for relative PDE.
+    Argument: dict[voltage] = lambda. Returns dict[voltage] = relativePDE dictionary and the key for the reference point."""
+    lowLambda = 1000
+    refKey = None
+    relPDEdict = {}
+    for key in meanPhotosDict:
+        if meanPhotosDict[key] < lowLambda:
+            lowLambda = meanPhotosDict[key]
+            refKey = key
+    if lowLambda == 100:
+        print("Something went wrong")
+        return None
+    for key in meanPhotosDict:
+        relativePDE = meanPhotosDict[key] / lowLambda
+        relPDEdict[key] = relativePDE
+    return relPDEdict, refKey
 
 #===========================================IV sweep data handling======================================================================================
 
@@ -151,3 +297,30 @@ class PointPicker:
 def pick_point_from_scatter(x, y, title):
     picker = PointPicker(x, y, title)
     return picker.selected_index
+
+
+#=========================USEFUL STUFF================================
+
+def numberToStringConvert(value):
+    niceStr = ""
+    if 1e-3 <= value < 1:
+        niceStr = str(value * 1e3) + "m"
+    if 1e-6 <= value <1e-3:
+        niceStr = str(value * 1e6) + u"\u03bc"
+    if 1e-9 <= value <1e-6:
+        niceStr = str(value*1e9) + "n"
+    return niceStr
+
+
+# Function to format the value with appropriate units
+def format_value(value):
+    if abs(value) >= 1:
+        return f"{value:.3f} V"  # Display as Volts for values >= 1 V
+    elif abs(value) >= 1e-3:
+        return f"{value*1e3:.3f} mV"  # Display as millivolts for values >= 1e-3 V and < 1 V
+    elif abs(value) >= 1e-6:
+        return f"{value*1e6:.3f} μV"  # Display as microvolts for values >= 1e-6 V and < 1e-3 V
+    elif abs(value) >= 1e-9:
+        return f"{value*1e9:.3f} nV"  # Display as nanovolts for values >= 1e-9 V and < 1e-6 V
+    else:
+        return f"{value:.3e} V"  # Display as scientific notation for very small values

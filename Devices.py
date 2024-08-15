@@ -1,7 +1,7 @@
 import pyvisa as visa
 import numpy as np
 from time import sleep
-
+import dataHandling as data
 
 class pyvisaResource:
     """Parent class for pyvisa properties and connections."""
@@ -38,6 +38,9 @@ class pyvisaResource:
     def abort(self):
         self.aborted=True
         print("ABORTED!!!")
+
+    def closeResource(self):
+        self.instr.close()
 
 class Keithley6487(pyvisaResource):
     def __init__(self):
@@ -208,13 +211,28 @@ class DSOX1102G(pyvisaResource):
         # VISA CONNECTIONS
         pyvisaResource.__init__(self)
         self.connectDevice("DSO-X 1102G") # Opens oscilloscope as a pyvisa resource saved to self.instr
-
+        self.isRunning = False
        
 
 
     def resetFactory(self):
         """Reset to factory settings"""
         self.instr.write("*RST")
+
+    def runStop(self):
+        if self.isRunning == False:
+            self.instr.write(":RUN")
+            self.isRunning = True
+        elif self.isRunning == True:
+            self.instr.write(":STOP")
+            self.isRunning = False
+    def singleRun(self):
+        self.instr.write(":SINGLE")
+        while True:
+            sleep(0.2)
+            self.instr.write("*OPC?")
+            if self.instr.read().strip() == "1":
+                break
 
     def displayOff(self, channel: int):
         self.instr.write(":CHANnel" + str(channel) + ":DISPlay 0")
@@ -229,17 +247,41 @@ class DSOX1102G(pyvisaResource):
         self.instr.write(":CHANnel" + str(channel) + ":RANGe " + str(voltageRange_V))
         self.instr.write(":TIMebase:RANGe " + str(timeRange_s))
         self.instr.write(":CHANnel" + str(channel) + ":DISPlay 1")
+
+    def setChannelVolt(self, channel, voltageRange_V):
+        self.instr.write(":CHANnel" + str(channel) + ":RANGe " + str(voltageRange_V))
     
+    def setTriggerChannel(self, channel):
+        self.instr.write(":TRIGger:SOURce CHANnel" + str(channel))
+
+    def setTriggerValue(self, triggerValue):
+        self.instr.write(":TRIGger:LEVel " + str(triggerValue))
+    
+    def setTimeRange(self, timeDiv_s):
+        """Set the time range for horizontal axis."""
+        self.instr.write(":TIMebase:RANGe " + str(timeDiv_s))
+
+    def setWaveGen(self, amplitude, width, frequency):
+        self.instr.write(":WGEN:FREQuency "+str(frequency))
+        self.instr.write(":WGEN:FUNCtion PULse")
+        self.instr.write(":WGEN:FUNCtion:PULSe:WIDTh "+str(width))
+        self.instr.write(":WGEN:VOLTage:LOW 0")
+        self.instr.write(":WGEN:VOLTage:HIGH "+str(amplitude))
+        self.instr.write(":WGEN:OUTPut 0")
+        
     def saveData(self, channel: int):
         """Reads binary data from oscilloscope, and formats it to voltages. 
-        Returns time and voltage data as lists. ACHTUNG! only works for channel 1 for now."""
+        Returns time and voltage data as lists. Does not trigger a new measurement, simply reads what is shown in screen."""
         
+        self.instr.write(f":WAVeform:SOURce CHAN{channel}") # Choose the target for waveform commands
+        self.instr.write(":WAV:SOUR?")
+        print(self.instr.read())
         timeScale = float(self.instr.query(":TIMebase:RANGE?"))
         yIncrement = float(self.instr.query(":WAVeform:YINCREMENT?"))
         yOrigin = float(self.instr.query("WAVeform:YORIGIN?"))
         self.instr.write("WAV:POIN MAX") # Take maximum number of datapoints
         dataList = []
-        self.instr.write(f":DIGitize CHANnel{channel}") #The :DIGitize command is a specialized RUN command. Stops when data aqusition is complete.
+        #self.instr.write(f":DIGitize CHANnel{channel}") #The :DIGitize command is a specialized RUN command. Stops when data aqusition is complete.
         values = self.instr.query_binary_values(":WAVeform:DATA?", datatype = "B") #The :WAVeform:DATA query returns the binary block of sampled data points transmitted using the IEEE 488.2 arbitrary block data format.
         for value in values:
             # Scales binary data to volts.
@@ -247,6 +289,23 @@ class DSOX1102G(pyvisaResource):
         time = np.linspace(0, timeScale, len(dataList)) #Time axis
         return time, dataList
     
+    def photonCountSingle(self, peakHeight, distance, prominence, channel = 1):
+        """Used for setting correct peak height, distance and prominence. Manually count peaks from oscilloscope and compare results."""
+        time, voltageData = self.saveData(channel)
+        return data.peakCounter(voltageData, peakHeight=peakHeight, distance=distance, prominence=prominence)
+    
+    def photonCount(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1):
+        """Counts pulses from screen numberOfDatasets times and returns an array with photon count of each set."""
+        self.instr.write(":RUN")
+
+        photonDistribution = np.empty(numberOfDatasets)
+        i = 0
+        while i < numberOfDatasets:
+            voltage = self.saveData(channel = channel)[1]
+            photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence)
+            i += 1
+        return photonDistribution
+
     def saveImage(self):
         """Saves current image shown from oscilloscope and returns PNG data"""
         self.instr.write(":HARDcopy:INKSaver OFF") #darkmode

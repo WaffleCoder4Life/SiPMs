@@ -381,6 +381,7 @@ class Keithley6487Pro:
     def updateCurrent(self):
         if self.running:
             self.instr.command(":INIT") #TRIGGER MEASUREMENT
+            sleep(0.2)
             self.instr.command(":SENS:DATA?") # data plz UwU
             self.voltData = float(self.instr.read())
             self.currentLab.config(text=f'{self.voltData:.3e} A')
