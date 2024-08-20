@@ -204,7 +204,7 @@ class File:
         self.SqrtButton = Checkbutton(self.button_frame, text = f"Square root", command=self.squareRoot, variable = self.uselesVar)
         self.SqrtButton.grid(row = 0, column = 1)
 
-        self.bdownBut = Button(self.button_frame, text = "Breakdown voltage", command = self.breakdown)
+        self.bdownBut = Button(self.button_frame, text = "Breakdown voltage", command = self.bdVolt)
         self.bdownBut.grid(row=0, column=2)
 
         self.showhide_button = Button(self.button_frame, text="Delete", command=self.killSelf)
@@ -247,7 +247,7 @@ class File:
         breakdownResult = solve(lineFit-lineFit2, x) # solves x from lineFit and lineFit2 intercept
         print(breakdownResult)
 
-    def breakdown(self, limit = 0.001):
+    def breakdown(self, limit = 0.00005):
         derivatives = data.derivative(self.voltList, self.sqrtCurList)
         print(derivatives)
         i = 0

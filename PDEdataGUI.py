@@ -6,6 +6,7 @@ import numpy as np
 import scipy.optimize
 from sympy import Symbol
 from sympy.solvers import solve
+from tkinter import colorchooser
 
 import dataHandling as data
 
@@ -85,7 +86,7 @@ class App:
 
 
     def selectFiles(self):
-        tempPaths = data.ChooseFiles(initdir="./dataCollection")
+        tempPaths = data.ChooseFiles(initdir="./dataCollection", filetypes=(("json file", "*.json"),))
         for path in tempPaths:
             idTemp = len(self.files)
             new_file = File(self, path, self.parameters_frame, id = idTemp)
@@ -103,19 +104,18 @@ class App:
       
     def updatePlot(self):
         self.ax.clear()
-        self.xMin, self.xMax = 0, 0
         for file in self.files:
-            voltList = file.getVoltList()
-            if file.getIsSqrt() == False:
-                curList = file.getCurrList()
-            if file.getIsSqrt() == True:
-                curList = file.getSqrtCurList()
-            for volt in voltList:
-                if volt < self.xMin:
-                    self.xMin = volt
-                if volt > self.xMax:
-                    self.xMax = volt
-            self.ax.scatter(voltList, curList, color = file.getColor(), label = file.getName())
+            if file.plotRelPDE == True:
+                relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
+                plt.scatter(relPDEdictKeys, file.relPDEdict.values(), color = file.color, marker="x", label = f"{file.name}")
+                plt.scatter(float(file.refKey), file.relPDEdict[file.refKey], s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                self.ax.set_ylabel("Relative PDE")
+            elif file.plotRelPDE == False:
+                meanPhotoDictKeys = [float(key) for key in file.meanPhotoDict.keys()]
+                plt.scatter(meanPhotoDictKeys, file.meanPhotoDict.values(), color = file.color, marker="x", label = f"{file.name}")
+                self.ax.set_ylabel("Mean number of photons")
+        self.ax.set_xlabel("Bias voltage")
+        
         self.ax.legend()
             
 
@@ -147,9 +147,10 @@ class File:
         self.id = id
         self.name = pathName.split("/")[-1][:-5]
         self.color = "red"
+        self.plotRelPDE = False
 
         # Reads the data and saves it as dict
-        self.meanPhotoDict = data.readDictJson(pathName)
+        self.meanPhotoDict = data.readDictJson(filePath=pathName)
         self.relPDEdict, self.refKey = data.relativePDEdict(self.meanPhotoDict)
         
 
@@ -175,67 +176,44 @@ class File:
         self.files = []
 
 
-        # Available colors for the dropdown
-        colors = ["Red", "Green", "Blue", "Yellow", "Black", "White"]
-
-        # Variable to hold the selected color
-        selected_color = tk.StringVar()
-
-        # Creating the button
-        self.colorButton = tk.Menubutton(self.button_frame, text="Select Color", direction="below")
+        
+        # Select plot color
+        self.colorButton = tk.Button(self.button_frame, text="Color", command=self.choose_color)
         self.colorButton.grid(row=0, column=0, padx=5)
 
-        # Creating the menu and adding color options
-        self.menu = tk.Menu(self.colorButton, tearoff=0)
-        """ for color in colors:
-            self.menu.add_radiobutton(label=color, variable=selected_color, value=color, command=lambda: self.select_color(selected_color.get())) """
-
-        for color in colors:
-            self.menu.add_command(
-                label=color,
-                background=color,  # Set the background to the color
-                activebackground=color,  # Set the active background to the color
-                command=lambda c=color: self.select_color(c)  # Pass the color value to the function
-    )
-
-        self.colorButton["menu"] = self.menu
-
-
+        # Plot relativePDE / mean number of photons
         self.uselesVar = tk.IntVar(value = 0) # Remove black box
+        self.plotRelPDEButton = Checkbutton(self.button_frame, text = f"Relative PDE", command=self.relativePDEplot, variable = self.uselesVar)
+        self.plotRelPDEButton.grid(row = 0, column = 1)
         
+        
+        # Rename file (and plot label)
+        self.renameBut = Button(self.button_frame, text = "Rename file", command=self.rename)
+        self.renameBut.grid(row=0, column=2, padx=5)
 
+        # Delete file from plot
         self.showhide_button = Button(self.button_frame, text="Delete", command=self.killSelf)
         self.showhide_button.grid(row=0, column=3, padx=5)
 
     
-    def print(self):
-        print("Hello")
-
-    def getColor(self):
-        return self.color
-    def setColor(self, color):
-        self.color = color
-    
-    def getName(self):
-        return str(self.name)
-    
-    
-
-    
-
-    
-
-    
-    def squareRoot(self):
-        if self.isSqrt == False:
-            self.isSqrt = True
-        else:
-            self.isSqrt = False
+    def rename(self):
+        self.name = data.inputText(title="NEW NAME")
+        self.frame.config(text = f"{self.name}")
         self.parent.updatePlot()
-    
-    def select_color(self, value):
-        self.colorButton.config(text=f"{value}", background = value)
-        self.color = value
+
+    def choose_color(self):
+        """Open a color picker dialog and set the color of the given line"""
+        color_code = colorchooser.askcolor(title="Choose color")
+        if color_code:
+            self.color = color_code[1]
+            self.colorButton.config(background = color_code[1])
+            self.parent.updatePlot()
+
+    def relativePDEplot(self):
+        if self.plotRelPDE == False:
+            self.plotRelPDE = True
+        else:
+            self.plotRelPDE = False
         self.parent.updatePlot()
 
     def killSelf(self):

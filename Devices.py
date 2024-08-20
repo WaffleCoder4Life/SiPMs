@@ -83,7 +83,9 @@ class Keithley6487(pyvisaResource):
     def readCurrentASCii(self):
         """Triggers a single measurement and returns the current as a float"""
         self.instr.write(":INIT") # Triggers a measurement
+        sleep(0.1)
         self.instr.write(":SENS:DATA?") # Asks for data, only stores one set of data
+        sleep(0.1)
         return float(self.instr.read()) # Returns the data read from the device
 
 # ---- Getters and Setters for basic properties ----
@@ -162,6 +164,7 @@ class Keithley6487(pyvisaResource):
                 voltage = endV
                 voltList, currList = [], []
                 self.set_voltage(voltage) #
+                sleep(0.1)
                 self.readCurrentASCii() # These two make sure the first measurement is also correct
                 while startV <= voltage:
                     if self.aborted:
@@ -172,7 +175,7 @@ class Keithley6487(pyvisaResource):
                     tempCurr = []
                     for i in range(mesPerV): # loop for average current
                         tempCurr.append(self.readCurrentASCii()) # single current measurement
-                        sleep(0.1)
+                        sleep(0.2)
                     currList.append(sum(tempCurr)/(len(tempCurr)))
                     voltList.append(voltage)
                     voltage -= stepV
@@ -196,7 +199,7 @@ class Keithley6487(pyvisaResource):
                     tempCurr = []
                     for i in range(mesPerV): # loop for average current
                         tempCurr.append(self.readCurrentASCii()) # single current measurement
-                        sleep(0.1)
+                        sleep(0.2)
                     currList.append(sum(tempCurr)/(len(tempCurr)))
                     voltList.append(voltage)
                     voltage += stepV
@@ -260,6 +263,9 @@ class DSOX1102G(pyvisaResource):
     def setTimeRange(self, timeDiv_s):
         """Set the time range for horizontal axis."""
         self.instr.write(":TIMebase:RANGe " + str(timeDiv_s))
+    
+    def setTimePosition(self, timePos_s):
+        self.instr.write(":TIMebase:POSition " + str(timePos_s))
 
     def setWaveGen(self, amplitude, width, frequency):
         self.instr.write(":WGEN:FREQuency "+str(frequency))
@@ -275,7 +281,6 @@ class DSOX1102G(pyvisaResource):
         
         self.instr.write(f":WAVeform:SOURce CHAN{channel}") # Choose the target for waveform commands
         self.instr.write(":WAV:SOUR?")
-        print(self.instr.read())
         timeScale = float(self.instr.query(":TIMebase:RANGE?"))
         yIncrement = float(self.instr.query(":WAVeform:YINCREMENT?"))
         yOrigin = float(self.instr.query("WAVeform:YORIGIN?"))
@@ -289,12 +294,12 @@ class DSOX1102G(pyvisaResource):
         time = np.linspace(0, timeScale, len(dataList)) #Time axis
         return time, dataList
     
-    def photonCountSingle(self, peakHeight, distance, prominence, channel = 1):
+    def photonCountSingle(self, peakHeight, distance, prominence, channel = 1, useOGcount = False):
         """Used for setting correct peak height, distance and prominence. Manually count peaks from oscilloscope and compare results."""
         time, voltageData = self.saveData(channel)
-        return data.peakCounter(voltageData, peakHeight=peakHeight, distance=distance, prominence=prominence)
+        return data.peakCounter(voltageData, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
     
-    def photonCount(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1):
+    def photonCount(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1, useOGcount = False):
         """Counts pulses from screen numberOfDatasets times and returns an array with photon count of each set."""
         self.instr.write(":RUN")
 
@@ -302,7 +307,8 @@ class DSOX1102G(pyvisaResource):
         i = 0
         while i < numberOfDatasets:
             voltage = self.saveData(channel = channel)[1]
-            photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence)
+            photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
+            print(f"Measurement {i/numberOfDatasets*100} %")
             i += 1
         return photonDistribution
 

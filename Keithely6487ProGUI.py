@@ -25,7 +25,7 @@ class Keithley6487Pro:
         self.infostyle = Style()
         self.infostyle.configure(style='info.TLabel', font=('Helvetica', 15))
         self.currstyle = Style()
-        self.currstyle.configure(style='curr.TLabel', font=('Helvetica', 35))
+        self.currstyle.configure(style='curr.TLabel', font=('Helvetica', 55))
         self.running = False
         self.rgb = False
         self.time1 = 0
@@ -350,8 +350,8 @@ class Keithley6487Pro:
             self.measurementRange = float(self.instr.read())
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')
         else:
-            self.instr.command(f":SENS:RANG {self.measurementRange}")
-            self.instr.command(":SENS:RANG?")
+            self.instr.command(f":CURR:RANG {self.measurementRange}")
+            self.instr.command(":CURR:RANG?")
             self.measurementRange = float(self.instr.read())
             print(self.measurementRange)
             self.measRanLab.config(text=f'Measurement range: {self.measurementRange} A')

@@ -34,12 +34,12 @@ for V, I in zip(volt, curr):
 testK.closeResource() """
 
 
-#oscillo = DSOX1102G()
+""" oscillo = DSOX1102G()
 
 
 #oscillo.singleRun()
 
-""" timeAx1, volt1 = oscillo.saveData(1)
+timeAx1, volt1 = oscillo.saveData(1)
 fig, ax1 = plt.subplots()
 ax2 = ax1.twinx()
 ax1.plot(timeAx1, volt1, color = "yellow")
@@ -63,22 +63,32 @@ data.plotPhotonDistribution(photoDistNew) """
 # Distributions to a plot -protocol
 
 # Read files and save photonLambda[volt] = lambda dictionary to a json file
-#meanPhoto = data.createPhotonsDict()
-#data.writeDictJson(meanPhoto)
+meanLED = data.createPhotonsDict()
+data.writeDictJson(meanLED)
+print(meanLED)
 
-photoDict = data.readDictJson()
+#meanDark = data.createPhotonsDict()
+#data.writeDictJson(meanDark)
+
+#meanLED = data.readDictJson()
+
+
+#data.writeDictJson(meanLED)
+
+
+""" photoDict = data.readDictJson()
 print(photoDict)
 
-relPDEdict, refKey = data.relativePDE(photoDict)
-relPDEdict = dict(sorted(relPDEdict.items()))
+relPDEdict, refKey = data.relativePDEdict(photoDict)
 print(relPDEdict)
 print(refKey)
 
+ """
 
 # save image protocol 
 """ testImage = oscillo.saveImage()
 path = data.ChooseFolder()
-data.saveOscilloImage(path, "FOUToneAmplifierSignal2_5V", testImage) """
+data.saveOscilloImage(path, "photonPulseBlueLED27V", testImage) """
 
 
 

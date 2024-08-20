@@ -17,12 +17,16 @@ class DSOX1102GGUI:
         # Create DSOX1102G object and reset
         self.instr = DSOX1102G()
         #self.instr.resetFactory() # Uncomment to reset
+        self.instr.command("CHAN1:PROB 1") # Set the channel probes to 1
+        self.instr.command("CHAN2:PROB 1")
 
         # Set screen
-        self.instr.setDisplay(1, 160e-3, 1)
+        self.instr.setDisplay(1, 16e-3, 1)
         self.instr.setDisplay(2, 8, 500e-9)
         self.instr.setTriggerValue(0)
-        self.timeRang = 1e-6
+        self.timeRang = 500e-9
+        self.timePos = 0
+        self.instr.command(":TIMebase:POSition " + str(self.timePos))
         self.instr.command(":STOP")
 
         
@@ -63,7 +67,7 @@ class DSOX1102GGUI:
         self.chan2 = Channel(self, self.channelFrame, ID = 2)
 
         #=======================TIME============================
-        self.timeLabel = Label(self.timeFrame, text = "Time axis "+data.numberToStringConvert(self.timeRang/10)+"s/div")
+        self.timeLabel = Label(self.timeFrame, text = "Time axis "+data.numberToStringConvert(self.timeRang/10)+"s/div, time position "+str(self.timePos)+" s")
         self.timeLabel.grid(column=0, row=0)
 
         self.setTimeDiv = Label(self.timeFrame, text="Set time range")
@@ -71,6 +75,12 @@ class DSOX1102GGUI:
         self.setTentry = Entry(self.timeFrame)
         self.setTentry.grid(column=1, row=1, pady= 2)
         self.setTentry.bind('<Return>', self.setTime)
+
+        self.setTimePosLab = Label(self.timeFrame, text="Set time position")
+        self.setTimePosLab.grid(column=0, row=2, pady = 2)
+        self.setTPOSentry = Entry(self.timeFrame)
+        self.setTPOSentry.grid(column=1, row=2, pady= 2)
+        self.setTPOSentry.bind('<Return>', self.setTimePos)
 
         #======================TRIGGER==========================0
         self.triggerLabel = Label(self.triggerFrame, text = "Trigger")
@@ -109,12 +119,30 @@ class DSOX1102GGUI:
         self.waveGenWidth = 300e-9
         self.waveGenFreq = 500e3
         self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for blue PDE measurements, turns it off
+
         self.wavGenIsOn = False
         self.wavGenOnBut = tk.Button(self.waveGenFrame, text = "Wave Gen", command = self.waveGenOnOff, background = "#f0f0f0")
         self.wavGenOnBut.grid(column=0, row=0)
 
+        # Variable to choose wav gen settings BLUE or UV
+        self.wavGenSettingsVar = tk.StringVar(value="1")
+        self.wavGenBlueBut = Checkbutton(self.waveGenFrame, text="Blue LED", variable=self.wavGenSettingsVar, 
+                                    onvalue="1", offvalue="None", command=self.blueLEDWavGen)
+        self.wavGenUVBut = Checkbutton(self.waveGenFrame, text="UV LED", variable=self.wavGenSettingsVar, 
+                                    onvalue="2", offvalue="None", command=self.uvLEDWavGen)
+        self.wavGenBlueLowBut = Checkbutton(self.waveGenFrame, text="Blue LED Low", variable=self.wavGenSettingsVar, 
+                                    onvalue="3", offvalue="None", command=self.blueLEDWavGenLow)
+        self.wavGenBlueBut.grid(column=0, row=1)
+        self.wavGenUVBut.grid(column=1, row=1)
+        self.wavGenBlueLowBut.grid(column=0, row=2)
+
         #=======================PDE / Photon counting stuff======================
-        self.peakHeightValue = 10e-3
+        self.useOGcounterVar = tk.BooleanVar(value=False)
+        self.useOGcountBut1 = Checkbutton(self.PDEframe, text="Use modfied peak counter", variable=self.useOGcounterVar, onvalue=False, offvalue=True)
+        self.useOGcountBut1.grid(column=0, row=5)
+
+
+        self.peakHeightValue = 1e-3
         self.peakHeightLab = Label(self.PDEframe, text = f"Peak height: {self.peakHeightValue}")
         self.peakHeightLab.grid(column=0, row=0)
         self.peakHeightEnt = Entry(self.PDEframe)
@@ -128,7 +156,7 @@ class DSOX1102GGUI:
         self.peakDistanceEnt.grid(column=1, row=1)
         self.peakDistanceEnt.bind("<Return>", self.setPeakDistance)
 
-        self.peakPromValue = 16e-3
+        self.peakPromValue = 18e-4
         self.peakProminenceLab = Label(self.PDEframe, text = f"Peak prominence: {self.peakPromValue}")
         self.peakProminenceLab.grid(column=0, row=2)
         self.peakProminanceEnt = Entry(self.PDEframe)
@@ -238,7 +266,28 @@ class DSOX1102GGUI:
         elif self.wavGenIsOn == True:
             self.wavGenOnBut.config(background="#f0f0f0")
             self.wavGenIsOn = False
-            self.instr.command(":WGEN:OUTPut 0")        
+            self.instr.command(":WGEN:OUTPut 0")
+    
+    def blueLEDWavGenLow(self):
+        self.waveGenVolt = 2.4
+        self.waveGenWidth = 120e-9
+        self.waveGenFreq = 500e3
+        self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for blue PDE measurements, turns it off
+        self.waveGenOnOff()
+
+    def blueLEDWavGen(self):
+        self.waveGenVolt = 2.4
+        self.waveGenWidth = 300e-9
+        self.waveGenFreq = 500e3
+        self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for blue PDE measurements, turns it off
+        self.waveGenOnOff()
+    
+    def uvLEDWavGen(self):
+        self.waveGenVolt = 5
+        self.waveGenWidth = 300e-9
+        self.waveGenFreq = 500e3
+        self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for UV PDE measurements, turns it off
+        self.waveGenOnOff()
     
 #===============Photon counting commands===============
     def setPeakHeight(self, event):
@@ -262,14 +311,14 @@ class DSOX1102GGUI:
         self.numberOfDatasetsLab.config(text = f"Number of datasets: {self.numberOfDatasetsValue}")
 
     def testCount(self):
-        peaks = self.instr.photonCountSingle(self.peakHeightValue, self.peakDistanceValue, self.peakPromValue)
+        peaks = self.instr.photonCountSingle(self.peakHeightValue, self.peakDistanceValue, self.peakPromValue, useOGcount=self.useOGcounterVar.get())
         self.testCountResLab.config(text = f"{peaks} peaks detected.")
 
     def photonDistribution(self):
-        photoDist = self.instr.photonCount(self.numberOfDatasetsValue, self.peakHeightValue, self.peakDistanceValue, self.peakPromValue)
+        photoDist = self.instr.photonCount(self.numberOfDatasetsValue, self.peakHeightValue, self.peakDistanceValue, self.peakPromValue, useOGcount=self.useOGcounterVar.get())
         meanPhotons = data.plotPhotonDistribution(photoDist)
         name = data.inputText("csv file name")
-        data.photoDistToCSV(name, photoDist, header = f"Wave gen settings: voltage {self.waveGenVolt}, width {self.waveGenWidth}, frequency {self.waveGenFreq}\nPeak finder settings: peak height {self.peakHeightValue}, peak distance {self.peakDistanceValue}, peak prominence {self.peakPromValue}")
+        data.photoDistToCSV(name, photoDist, header = f"Wave gen settings: voltage {self.waveGenVolt}, width {self.waveGenWidth}, frequency {self.waveGenFreq}\nPeak finder settings: peak height {self.peakHeightValue}, peak distance {self.peakDistanceValue}, peak prominence {self.peakPromValue}\n Time axis: time range {self.timeRang}, time position {self.timePos}")
         
     def plotPhotoDist(self):
         file = data.ChooseFiles(initdir="./dataCollection" ,text = "Choose photon distribution to plot")
@@ -280,8 +329,14 @@ class DSOX1102GGUI:
     def setTime(self, event):
         self.timeRang = float(self.setTentry.get())
         self.instr.setTimeRange(self.timeRang)
-        self.timeLabel.config(text = "Time axis "+data.numberToStringConvert(self.timeRang / 10)+"s/div")
+        self.timeLabel.config(text = "Time axis "+data.numberToStringConvert(self.timeRang / 10)+"s/div , time position "+str(self.timePos)+" s")
         self.setTentry.delete(0, "end")
+
+    def setTimePos(self, event):
+        self.timePos = float(self.setTPOSentry.get())
+        self.instr.setTimePosition(self.timePos)
+        self.timeLabel.config(text = "Time axis "+data.numberToStringConvert(self.timeRang / 10)+"s/div, time position "+str(self.timePos)+" s")
+        self.setTPOSentry.delete(0, "end")
 
     def thread(self, command):
         threading.Thread(target=command).start()
