@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # 500 pulses recorded at 60 K to be used as testing data
 
 def jsonToLists():
-    dataDictionary = data.readDictJson(filePath="C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/peakFilterTestingData24_5VPt60.json")
+    dataDictionary = data.readDictJson(filePath="C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/peakFilterTestingData24_5VPt60.json")
     timeDataList = []
     voltDataList = []
     for key in dataDictionary:
