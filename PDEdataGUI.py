@@ -56,6 +56,12 @@ class App:
         self.selectFilesBut = Button(button_frame, text="Add files", command = self.selectFiles)
         self.selectFilesBut.grid(column=0, row=0)
 
+        self.voltAxVar = tk.IntVar(value = 0)
+        self.voltageAxBut = Checkbutton(button_frame, text="Bias voltage", variable=self.voltAxVar, onvalue=0, command = self.updatePlot)
+        self.overVoltageAxBut = Checkbutton(button_frame, text="Over voltage", variable=self.voltAxVar, onvalue=1, command = self.updatePlot)
+        self.voltageAxBut.grid(column=1, row=0)
+        self.overVoltageAxBut.grid(column=2, row=0)
+
         self.files = []
         
         
@@ -63,6 +69,7 @@ class App:
 
         # Create a figure and axis
         self.fig, self.ax = plt.subplots()
+        self.ax2 = self.ax.twinx()
         self.x = np.linspace(0, 2 * np.pi, 100)
         self.lines = []
 
@@ -75,14 +82,20 @@ class App:
         self.toolbar.update()
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-        # Frame to hold the sample control
+        # Frame to hold the ylim buttons
         sample_frame = Frame(self.main_frame)
         sample_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
 
-        Label(sample_frame, text="Number of Samples:").pack(side=tk.LEFT, padx=5)
-        self.sample_var = tk.IntVar(value=100)
-        self.sample_entry = Entry(sample_frame, textvariable=self.sample_var)
-        self.sample_entry.pack(side=tk.LEFT, padx=5)
+        Label(sample_frame, text="Y limit min").grid(column=0, row=0)
+        Label(sample_frame, text="Y limit max").grid(column=1, row=0)
+        self.ylim_min_button = tk.Spinbox(sample_frame, command=self.updatePlot, from_=0, to=20, increment=0.5, wrap=True)
+        self.ylim_min_button.delete(0, "end")
+        self.ylim_min_button.insert(0, 4)
+        self.ylim_min_button.grid(column=0, row=1)
+        self.ylim_max_button = tk.Spinbox(sample_frame, command=self.updatePlot, from_=1, to=40, increment=0.5, wrap=True)
+        self.ylim_max_button.delete(0, "end")
+        self.ylim_max_button.insert(0, 9)
+        self.ylim_max_button.grid(column=1, row=1)
 
 
     def selectFiles(self):
@@ -104,19 +117,65 @@ class App:
       
     def updatePlot(self):
         self.ax.clear()
-        for file in self.files:
-            if file.plotRelPDE == True:
-                relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
-                plt.scatter(relPDEdictKeys, file.relPDEdict.values(), color = file.color, marker="x", label = f"{file.name}")
-                plt.scatter(float(file.refKey), file.relPDEdict[file.refKey], s=80, facecolors='none', edgecolors=file.color, label="Reference point")
-                self.ax.set_ylabel("Relative PDE")
-            elif file.plotRelPDE == False:
+        self.ax2.clear()
+        ylim1 = float(self.ylim_min_button.get())
+        ylim2 = float(self.ylim_max_button.get())
+        self.ax.set_ylim(ylim1,ylim2)
+
+        if self.voltAxVar.get() == 0:
+            #print("X axis = bias voltage")
+            for file in self.files:
+                
+                if file.isPDEref == True:
+                    if file.PDErefVar.get() == 1:
+                        """Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.31, ylim2 / float(file.meanPhotoDict[file.refKey])*0.31)
+                        referencePDEvalue = 0.31
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey), file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        self.ax2.set_ylabel("PDE")
+                        print("Blue ref")
+                    if file.PDErefVar.get() == 0:
+                        self.ax2.get_yaxis().set_visible(False)
+                        print("No ref")
+
+
                 meanPhotoDictKeys = [float(key) for key in file.meanPhotoDict.keys()]
-                plt.scatter(meanPhotoDictKeys, file.meanPhotoDict.values(), color = file.color, marker="x", label = f"{file.name}")
+                self.ax.scatter(meanPhotoDictKeys, file.meanPhotoDict.values(), color = file.color, marker="x", label = f"{file.name}")
                 self.ax.set_ylabel("Mean number of photons")
-        self.ax.set_xlabel("Bias voltage")
-        
-        self.ax.legend()
+            self.ax.set_xlabel("Bias voltage / V")
+
+        elif self.voltAxVar.get() == 1:
+            #print("X axis = over voltage")
+            for file in self.files:
+                Vbr = file.bdVoltValue
+
+                if file.isPDEref == True:
+                    if file.PDErefVar.get() == 1:
+                        """Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.31, ylim2 / float(file.meanPhotoDict[file.refKey])*0.31)
+                        referencePDEvalue = 0.31
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key)-Vbr for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey)-Vbr, file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        self.ax2.set_ylabel("PDE")
+                        print("Blue ref")
+                    if file.PDErefVar.get() == 0:
+                        self.ax2.get_yaxis().set_visible(False)
+                        print("No ref")
+
+
+                meanPhotoDictKeys = [float(key)-Vbr for key in file.meanPhotoDict.keys()]
+                self.ax.scatter(meanPhotoDictKeys, file.meanPhotoDict.values(), color = file.color, marker="x", label = f"{file.name}")
+                self.ax.set_ylabel("Mean number of photons")
+            self.ax.set_xlabel("Over voltage / V")
+            
+        self.ax.legend(loc = "upper left")
             
 
         self.canvas.draw()
@@ -147,7 +206,9 @@ class File:
         self.id = id
         self.name = pathName.split("/")[-1][:-5]
         self.color = "red"
-        self.plotRelPDE = False
+        self.isPDEref = False
+        self.bdVoltValue = 0
+        
 
         # Reads the data and saves it as dict
         self.meanPhotoDict = data.readDictJson(filePath=pathName)
@@ -171,6 +232,9 @@ class File:
         self.button_frame.columnconfigure(2, weight=1)
         self.button_frame.rowconfigure(0, weight=1)
         self.button_frame.rowconfigure(1, weight=1)
+        # PDE ref frame
+        self.pdeRef_frame = Frame(self.frame)
+        self.pdeRef_frame.grid(row = 1, column = 0)
 
         # List to hold file entries
         self.files = []
@@ -182,18 +246,35 @@ class File:
         self.colorButton.grid(row=0, column=0, padx=5)
 
         # Plot relativePDE / mean number of photons
-        self.uselesVar = tk.IntVar(value = 0) # Remove black box
-        self.plotRelPDEButton = Checkbutton(self.button_frame, text = f"Relative PDE", command=self.relativePDEplot, variable = self.uselesVar)
-        self.plotRelPDEButton.grid(row = 0, column = 1)
-        
+        self.pdeRefLab = Label(self.pdeRef_frame, text = "Use as PDE reference point")
+        self.pdeRefLab.grid(row=0, column=0)
+        self.uselessVar = tk.IntVar(value=0) # Get rid of dark box
+        self.pdeRefBut = Checkbutton(self.pdeRef_frame, command=self.useAsRefPDE, variable=self.uselessVar)
+        self.pdeRefBut.grid(row=0, column=1)
+
+        self.PDErefVar = tk.IntVar(value = 0) # 0 non, 1 blue, 2 uv
+        #self.plotRelPDEButton = Checkbutton(self.pdeRef_frame, text = f"None", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=0)
+        #self.plotRelPDEButton.grid(row = 1, column = 0)
+        self.plotRelBluePDEButton = Checkbutton(self.pdeRef_frame, text = f"Blue", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=1)
+        self.plotRelBluePDEButton.grid(row = 1, column = 1)
+        self.RelPDEuvButton = Checkbutton(self.pdeRef_frame, text = f"UV", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=2)
+        self.RelPDEuvButton.grid(row=1, column=2)
+
         
         # Rename file (and plot label)
         self.renameBut = Button(self.button_frame, text = "Rename file", command=self.rename)
-        self.renameBut.grid(row=0, column=2, padx=5)
+        self.renameBut.grid(row=0, column=3, padx=5)
 
         # Delete file from plot
         self.showhide_button = Button(self.button_frame, text="Delete", command=self.killSelf)
-        self.showhide_button.grid(row=0, column=3, padx=5)
+        self.showhide_button.grid(row=0, column=4, padx=5)
+
+        # Manually enter breakdown voltage
+        self.bdVlab = Label(self.button_frame, text = "Vbr: "+str(self.bdVoltValue))
+        self.bdVlab.grid(row=0, column=1)
+        self.bdVentry = Entry(self.button_frame)
+        self.bdVentry.bind("<Return>", self.enterPressed)
+        self.bdVentry.grid(row=0, column=2)
 
     
     def rename(self):
@@ -209,11 +290,24 @@ class File:
             self.colorButton.config(background = color_code[1])
             self.parent.updatePlot()
 
+    def enterPressed(self, event):
+        self.setBreakdown()
+
+    def setBreakdown(self):
+        bdV = float(self.bdVentry.get())
+        self.bdVentry.delete(0, tk.END)
+        self.bdVoltValue = bdV
+        self.bdVlab.config(text = "Vbr: "+str(self.bdVoltValue))
+        self.parent.updatePlot()
+
+    def useAsRefPDE(self):
+        if self.isPDEref == False:
+            self.isPDEref = True
+        elif self.isPDEref==True:
+            self.isPDEref = False
+
     def relativePDEplot(self):
-        if self.plotRelPDE == False:
-            self.plotRelPDE = True
-        else:
-            self.plotRelPDE = False
+        
         self.parent.updatePlot()
 
     def killSelf(self):

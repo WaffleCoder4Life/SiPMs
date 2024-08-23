@@ -373,7 +373,7 @@ class Channel:
         self.row += 1
 
         #=================Channel voltage scale======================================
-        self.voltSpinbox = tk.Spinbox(self.chanFrame, from_=40e-3, to=80, increment=80e-3, format="%.3f", command=self.setVolt)
+        self.voltSpinbox = tk.Spinbox(self.chanFrame, from_=8e-3, to=80, increment=40e-3, format="%.3f", command=self.setVolt)
         self.voltSpinbox.grid(column=0, row =self.row, padx=10, pady=10)
         self.voltSpinbox.bind("<Return>", self.enterPressed)
 

@@ -140,6 +140,40 @@ def peakCounter(voltData, peakHeight, distance, prominence, useOriginal = False)
     return fotons
 
 
+def peakCounterSout(voltData, peakHeight, distance, prominence, rightProminence = 0.0008, useOriginal = False):
+    """Modified peak counter for slow output, use left and right hand sided prominences with different scale. RHS prominance hardcoded for liquid nitrogen."""
+    if useOriginal:
+        fotons = oscilloPeakCounter(voltData, peakHeight, distance, prominence)
+        print(f"Original peak counter used")
+    else:
+        peaks, _ = find_peaks(voltData, height = peakHeight, distance = distance, prominence=0)
+        _ , left_bases, right_bases = peak_prominences(voltData, peaks)
+        left_prominences = []
+        right_prominences = []
+        print(f"Peaks before filter: {peaks}")
+        print(f"Left bases: {left_bases}")
+        for i in range(len(peaks)):
+            left_prominences.append(voltData[peaks[i]] - voltData[left_bases[i]])
+            right_prominences.append(voltData[peaks[i]] - voltData[right_bases[i]])
+        fotons = 0
+        truePeaks = []
+        leftProm = []
+        truePeakProm = []
+        for i in range(len(left_prominences)):
+            if left_prominences[i] > prominence and right_prominences[i] > rightProminence:
+                fotons += 1
+                truePeaks.append(peaks[i])
+                leftProm.append(left_bases[i])
+                truePeakProm.append(left_prominences[i])
+        print(f"{fotons} fotons detected")
+        print(f"Peak locatins {truePeaks}")
+        print(f"Left base locations {leftProm}")
+        print(f"Peak LHS prominences {truePeakProm}")
+
+        
+    return fotons
+
+
 
 def plotPhotonDistribution(photonDistribution):
     """Plots the poissonian distribution for mean number of photons in the pulse and the measured data."""
@@ -192,24 +226,7 @@ def createPhotonsDict():
     print(meanPhotonsDict)
     return meanPhotonsDict
 
-def subPoisPhotonsDict():
-    """Counts the mean number of photons (lambda) from each photon distribution using SUB POISSONIAN distribution. Saves them to dictionary with bias voltage as key and lambda as value.
-    Keys are typed in manually. Returns the dictionary sorted by key values (bias voltages)."""
-    filePaths = ChooseFiles(initdir="./dataCollection", text = "Choose distributions to count mean number of photons")
-    meanPhotonsDict = {}
-    for file in filePaths:
-        photoDist = CSVtoPhotoDist(file)
-        photonCounts = Counter(photoDist)
-        # Counts mean number of photons in photonDistribution
-        poisson_lambda = 0
-        for key in photonCounts:
-            poisson_lambda += int(key)*int(photonCounts[key])
-        poisson_lambda /= len(photoDist)
-        biasVoltage = str(inputText(title=f"Enter BIAS VOLTAGE for file {file[-18:-3]}"))
-        meanPhotonsDict[biasVoltage] = poisson_lambda
-    meanPhotonsDict = dict(sorted(meanPhotonsDict.items()))
-    print(meanPhotonsDict)
-    return meanPhotonsDict
+
 
 def writeDictJson(dictionary, initdir = "./dataCollection"):
     """Save a dictionary to json file"""

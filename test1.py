@@ -36,8 +36,21 @@ testK.closeResource() """
 
 """ oscillo = DSOX1102G()
 
+lotOfData = {}
+for i in range(500):
+    oscillo.singleRun()
+    timeee, dataa = oscillo.saveData(1)
+    timeee = list(timeee)
+    lotOfData[i] = timeee, dataa
+data.writeDictJson(lotOfData)
+ """
 
-#oscillo.singleRun()
+dataDict = data.readDictJson()
+plt.scatter(dataDict["0"][0], dataDict["0"][1])
+plt.show()
+
+
+""" #oscillo.singleRun()
 
 timeAx1, volt1 = oscillo.saveData(1)
 fig, ax1 = plt.subplots()
@@ -63,9 +76,9 @@ data.plotPhotonDistribution(photoDistNew) """
 # Distributions to a plot -protocol
 
 # Read files and save photonLambda[volt] = lambda dictionary to a json file
-meanLED = data.createPhotonsDict()
-data.writeDictJson(meanLED)
-print(meanLED)
+#meanLED = data.createPhotonsDict()
+#data.writeDictJson(meanLED)
+#print(meanLED)
 
 #meanDark = data.createPhotonsDict()
 #data.writeDictJson(meanDark)

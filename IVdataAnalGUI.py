@@ -6,7 +6,7 @@ import numpy as np
 import scipy.optimize
 from sympy import Symbol
 from sympy.solvers import solve
-
+from tkinter import colorchooser
 import dataHandling as data
 
 
@@ -54,6 +54,12 @@ class App:
         self.fileID = 0 # To keep count on files
         self.selectFilesBut = Button(button_frame, text="Add files", command = self.selectFiles)
         self.selectFilesBut.grid(column=0, row=0)
+
+        self.voltAxVar = tk.IntVar(value = 0)
+        self.voltageAxBut = Checkbutton(button_frame, text="Bias voltage", variable=self.voltAxVar, onvalue=0, command = self.updatePlot)
+        self.overVoltageAxBut = Checkbutton(button_frame, text="Over voltage", variable=self.voltAxVar, onvalue=1, command = self.updatePlot)
+        self.voltageAxBut.grid(column=1, row=0)
+        self.overVoltageAxBut.grid(column=2, row=0)
 
         self.files = []
         
@@ -104,18 +110,33 @@ class App:
     def updatePlot(self):
         self.ax.clear()
         self.xMin, self.xMax = 0, 0
-        for file in self.files:
-            voltList = file.getVoltList()
-            if file.getIsSqrt() == False:
-                curList = file.getCurrList()
-            if file.getIsSqrt() == True:
-                curList = file.getSqrtCurList()
-            for volt in voltList:
-                if volt < self.xMin:
-                    self.xMin = volt
-                if volt > self.xMax:
-                    self.xMax = volt
-            self.ax.scatter(voltList, curList, color = file.getColor(), label = file.getName())
+        if self.voltAxVar.get() == 0:
+            for file in self.files:
+                voltList = file.getVoltList()
+                if file.getIsSqrt() == False:
+                    curList = file.getCurrList()
+                if file.getIsSqrt() == True:
+                    curList = file.getSqrtCurList()
+                for volt in voltList:
+                    if volt < self.xMin:
+                        self.xMin = volt
+                    if volt > self.xMax:
+                        self.xMax = volt
+                self.ax.scatter(voltList, curList, color = file.getColor(), label = file.name)
+        elif self.voltAxVar.get() == 1:
+            for file in self.files:
+                voltList = file.getVoltList()
+                overVoltList = [volt - file.bdVoltValue for volt in voltList]
+                if file.getIsSqrt() == False:
+                    curList = file.getCurrList()
+                if file.getIsSqrt() == True:
+                    curList = file.getSqrtCurList()
+                for volt in voltList:
+                    if volt < self.xMin:
+                        self.xMin = volt
+                    if volt > self.xMax:
+                        self.xMax = volt
+                self.ax.scatter(overVoltList, curList, color = file.getColor(), label = file.name)
         self.ax.legend()
             
 
@@ -146,6 +167,7 @@ class File:
         self.id = id
         self.name = pathName.split("/")[-1][:-4]
         self.color = "red"
+        self.bdVoltValue = 24
 
         # Reads the data and saves it as float lists
         self.voltList, self.curList = data.readIVsweepFile(pathName)
@@ -174,41 +196,32 @@ class File:
         self.files = []
 
 
-        # Available colors for the dropdown
-        colors = ["Red", "Green", "Blue", "Yellow", "Black", "White"]
-
-        # Variable to hold the selected color
-        selected_color = tk.StringVar()
-
-        # Creating the button
-        self.colorButton = tk.Menubutton(self.button_frame, text="Select Color", direction="below")
+        # Select plot color
+        self.colorButton = tk.Button(self.button_frame, text="Color", command=self.choose_color)
         self.colorButton.grid(row=0, column=0, padx=5)
-
-        # Creating the menu and adding color options
-        self.menu = tk.Menu(self.colorButton, tearoff=0)
-        """ for color in colors:
-            self.menu.add_radiobutton(label=color, variable=selected_color, value=color, command=lambda: self.select_color(selected_color.get())) """
-
-        for color in colors:
-            self.menu.add_command(
-                label=color,
-                background=color,  # Set the background to the color
-                activebackground=color,  # Set the active background to the color
-                command=lambda c=color: self.select_color(c)  # Pass the color value to the function
-    )
-
-        self.colorButton["menu"] = self.menu
-
 
         self.uselesVar = tk.IntVar(value = 0) # Remove black box
         self.SqrtButton = Checkbutton(self.button_frame, text = f"Square root", command=self.squareRoot, variable = self.uselesVar)
         self.SqrtButton.grid(row = 0, column = 1)
 
-        self.bdownBut = Button(self.button_frame, text = "Breakdown voltage", command = self.bdVolt)
+        self.bdownBut = Button(self.button_frame, text = "Count Vbr", command = self.bdVolt)
         self.bdownBut.grid(row=0, column=2)
 
+        
+        # Rename file (and plot label)
+        self.renameBut = Button(self.button_frame, text = "Rename file", command=self.rename)
+        self.renameBut.grid(row=0, column=3, padx=5)
+
+        # Manually enter breakdown voltage
+        self.bdVlab = Label(self.button_frame, text = "Vbr: "+str(self.bdVoltValue))
+        self.bdVlab.grid(row=1, column=0)
+        self.bdVentry = Entry(self.button_frame)
+        self.bdVentry.bind("<Return>", self.enterPressed)
+        self.bdVentry.grid(row=1, column=1)
+
         self.showhide_button = Button(self.button_frame, text="Delete", command=self.killSelf)
-        self.showhide_button.grid(row=0, column=3, padx=5)
+        self.showhide_button.grid(row=1, column=3, padx=5)
+
 
     
     def print(self):
@@ -226,8 +239,28 @@ class File:
         return self.sqrtCurList
     def getIsSqrt(self):
         return self.isSqrt
-    def getName(self):
-        return str(self.name)
+    def rename(self):
+        self.name = data.inputText(title="NEW NAME")
+        self.frame.config(text = f"{self.name}")
+        self.parent.updatePlot()
+    
+    def enterPressed(self, event):
+        self.setBreakdown()
+
+    def setBreakdown(self):
+        bdV = float(self.bdVentry.get())
+        self.bdVentry.delete(0, tk.END)
+        self.bdVoltValue = bdV
+        self.bdVlab.config(text = "Vbr: "+str(self.bdVoltValue))
+        
+
+    def choose_color(self):
+        """Open a color picker dialog and set the color of the given line"""
+        color_code = colorchooser.askcolor(title="Choose color")
+        if color_code:
+            self.color = color_code[1]
+            self.colorButton.config(background = color_code[1])
+            self.parent.updatePlot()
     
     def line(self, x, a, b):
         return a*x + b
@@ -245,7 +278,9 @@ class File:
         lineFit = self.line(x, voltResult[0][0], voltResult[0][1]) # arguments x, a (slope) and b (intercept)
         lineFit2 = self.line(x, voltResult2[0][0], voltResult2[0][1])
         breakdownResult = solve(lineFit-lineFit2, x) # solves x from lineFit and lineFit2 intercept
-        print(breakdownResult)
+        self.bdVoltValue = breakdownResult[0]
+        self.bdVlab.config(text = "Vbr: "+str(self.bdVoltValue))
+        print(self.bdVoltValue)
 
     def breakdown(self, limit = 0.00005):
         derivatives = data.derivative(self.voltList, self.sqrtCurList)

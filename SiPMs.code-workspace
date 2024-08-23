@@ -1,11 +1,10 @@
 {
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "../../GraduKoodia"
-		}
-	],
-	"settings": {}
+    "folders": [
+        {
+            "path": "."
+        },
+        {
+            "path": "../../GraduKoodia"
+        }
+    ]
 }
