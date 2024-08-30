@@ -1,6 +1,7 @@
 import pyvisa as visa
 import numpy as np
 from time import sleep
+import time
 import dataHandling as data
 
 class pyvisaResource:
@@ -136,11 +137,11 @@ class Keithley6487(pyvisaResource):
         self.voltage = self.get_voltage()
 
 
-    def IVsweep(self, startV, endV, stepV, mesPerV = 1, quickie: bool = False, reverse: bool = False):
+    def IVsweep(self, startV, endV, stepV, mesPerV = 1, quickie: bool = False, reverse: bool = False, extraFunctio = None, args = None):
         """Perfom IV-sweep from 'startV' to 'endV'. Takes 'mesPerV' measurements every 'stepV' voltage and returns the average current for each voltage.
            Returns the data as two lists; voltage, current. stepV minimum allowed value for 50 V range 0.001 V. Optional parameters; quickie (True/False) overrun 
            stepV and mesPerV for a quick scan with 10 measurement points. Useful for locating breakdown voltage and tuning current limit etc.
-           reverse (True/False) to execute the sweep in reverse."""
+           reverse (True/False) to execute the sweep in reverse. IF ERRORS OCCUR; DELETE ALL EXTRA STUFF"""
         if quickie:
             if self.isOn == False:
                 self.powerOn()
@@ -190,12 +191,19 @@ class Keithley6487(pyvisaResource):
                 voltList, currList = [], []
                 self.set_voltage(voltage) #
                 self.readCurrentASCii() # These two make sure the first measurement is also correct
+                extraList = []
                 while voltage <= endV:
                     if self.aborted:
                         self.aborted=False
                         break
                     self.set_voltage(voltage)
                     sleep(0.5) # sleepy time
+                    if extraFunctio is not None:
+                        if args is not None:
+                            extraList.append((voltage, extraFunctio(*args)))
+                        else:
+                            pass
+                            #NOT WORKING
                     tempCurr = []
                     for i in range(mesPerV): # loop for average current
                         tempCurr.append(self.readCurrentASCii()) # single current measurement
@@ -204,7 +212,10 @@ class Keithley6487(pyvisaResource):
                     voltList.append(voltage)
                     voltage += stepV
                 self.powerOff()
-                return voltList, currList
+                if extraFunctio is not None:
+                    return voltList, currList, extraList
+                else:
+                    return voltList, currList
                     
 
         
@@ -299,18 +310,104 @@ class DSOX1102G(pyvisaResource):
         time, voltageData = self.saveData(channel)
         return data.peakCounter(voltageData, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
     
-    def photonCount(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1, useOGcount = False):
+    def photonCount(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1, useOGcount = False, filterNegative = False):
         """Counts pulses from screen numberOfDatasets times and returns an array with photon count of each set."""
         self.instr.write(":RUN")
 
         photonDistribution = np.empty(numberOfDatasets)
         i = 0
         while i < numberOfDatasets:
-            voltage = self.saveData(channel = channel)[1]
-            photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
-            print(f"Measurement {i/numberOfDatasets*100} %")
-            i += 1
+            try:
+                if filterNegative == True:
+                    voltage = self.saveData(channel = channel)[1]
+                    if min(voltage) < -1.5e-3:
+                        print("BAD PULSE :(")
+                        continue
+                    else:
+                        photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
+                        print(f"Measurement {i/numberOfDatasets*100} %")
+                        i += 1
+                else:
+                    voltage = self.saveData(channel = channel)[1]
+                    photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
+                    print(f"Measurement {i/numberOfDatasets*100} %")
+                    i += 1
+            except visa.VisaIOError:
+                print("No data to read yet:(")
         return photonDistribution
+    
+    def photonCountSlowmode(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1, useOGcount = False):
+        """Counts pulses from screen numberOfDatasets times and returns an array with photon count of each set. Uses segmented aqcuisition to avoid time out errors with
+        low rate samples. As a bonus prints out the dark count rate at the end of the measurement."""
+        self.instr.write(":ACQuire:MODE SEGM") # Aquire mode segmented
+        self.instr.write(":ACQuire:MODE?")
+        print("Acquire type "+self.instr.read())
+
+
+        segNumber = int(numberOfDatasets / 50)
+
+        self.instr.write(":ACQuire:SEGMented:COUNt "+str(50)) # Set amount of segments to be aquired, max 50
+        totalTime = 0
+        photonDistribution = np.empty(numberOfDatasets)
+        # Runtime less than 0.1 s for trigger 0 (always triggers)
+        seg = 0
+        i = 0
+        while seg < segNumber:
+            sleep(0.5)
+            startT = time.time()
+            self.instr.write(":SINGle")
+            while True:
+                try:
+                    sleep(0.001)
+                    self.instr.write(":WAVeform:SEGMented:COUNt?")
+                    sleep(0.001)
+                    dimSegments = int(self.instr.read().strip("\n+"))
+                    if dimSegments == 50:
+                        break
+                except:
+                    print("Some visa timeout shit happened")
+            endT = time.time()
+            totalTime += (endT-startT-0.112) # Calibrated with the average runtime of 100 zero triggers
+            
+            segIndex = 1
+            while segIndex <= 50:
+                self.instr.write(f":ACQuire:SEGMented:INDex {segIndex}")
+                sleep(0.1)
+                voltage = self.saveData(channel = channel)[1]
+                photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
+                print(f"Measurement {i/numberOfDatasets*100} %")
+                i += 1
+                segIndex += 1
+            seg += 1
+        print(f"Total time {totalTime}")
+        print(f"Dark count rate {numberOfDatasets / totalTime} Hz")
+        return photonDistribution
+
+
+
+
+    def afterPulseProb(self, numberOfDatasets, peakHeight, distance, prominenceMin, pulseMax, name = "photonDistribution", channel = 1):
+        """Count number of photons numberOfDatasets times and returns an array with photon count of each set. Filters out if 5 us prior to trigger includes photons
+        and only counts 1 P.E. dark counts."""
+        self.instr.write(":RUN")
+        photonDistribution = np.empty(numberOfDatasets)
+        i = 0
+        j = 0
+        while i < numberOfDatasets:
+                voltage = self.saveData(channel = channel)[1]
+                photoDist = data.afterPulseCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominenceMin, pulseMax=pulseMax)
+                print(photoDist)
+                if photoDist is not None:
+                    photonDistribution[i] = photoDist
+                    print(f"Measurement {i/numberOfDatasets*100} %")
+                    i += 1
+                else:
+                    #j += 1
+                    if j == 10:
+                        break
+                    continue
+        return photonDistribution
+
 
     def saveImage(self):
         """Saves current image shown from oscilloscope and returns PNG data"""

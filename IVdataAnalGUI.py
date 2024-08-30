@@ -110,11 +110,12 @@ class App:
     def updatePlot(self):
         self.ax.clear()
         self.xMin, self.xMax = 0, 0
-        if self.voltAxVar.get() == 0:
+        if self.voltAxVar.get() == 0: # Plot as a function of bias voltage
             for file in self.files:
                 voltList = file.getVoltList()
                 if file.getIsSqrt() == False:
                     curList = file.getCurrList()
+                    self.ax.set_ylabel("Current / A")
                 if file.getIsSqrt() == True:
                     curList = file.getSqrtCurList()
                 for volt in voltList:
@@ -123,12 +124,14 @@ class App:
                     if volt > self.xMax:
                         self.xMax = volt
                 self.ax.scatter(voltList, curList, color = file.getColor(), label = file.name)
-        elif self.voltAxVar.get() == 1:
+            self.ax.set_xlabel("Bias voltage / V")
+        elif self.voltAxVar.get() == 1: # Plot as function of over voltage
             for file in self.files:
                 voltList = file.getVoltList()
                 overVoltList = [volt - file.bdVoltValue for volt in voltList]
                 if file.getIsSqrt() == False:
                     curList = file.getCurrList()
+                    self.ax.set_ylabel("Current / A")
                 if file.getIsSqrt() == True:
                     curList = file.getSqrtCurList()
                 for volt in voltList:
@@ -137,6 +140,8 @@ class App:
                     if volt > self.xMax:
                         self.xMax = volt
                 self.ax.scatter(overVoltList, curList, color = file.getColor(), label = file.name)
+            self.ax.set_xlabel("Over voltage / V")
+        
         self.ax.legend()
             
 

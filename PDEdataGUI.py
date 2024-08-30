@@ -14,7 +14,7 @@ import dataHandling as data
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("IV-sweep data analyz")
+        self.root.title("PDE counting")
 
         # Bind the window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -128,7 +128,7 @@ class App:
                 
                 if file.isPDEref == True:
                     if file.PDErefVar.get() == 1:
-                        """Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
+                        """BLUE. Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
                         self.ax2.get_yaxis().set_visible(True)
                         self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.31, ylim2 / float(file.meanPhotoDict[file.refKey])*0.31)
                         referencePDEvalue = 0.31
@@ -141,7 +141,17 @@ class App:
                     if file.PDErefVar.get() == 0:
                         self.ax2.get_yaxis().set_visible(False)
                         print("No ref")
-
+                    if file.PDErefVar.get() == 2:
+                        """UV. Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.07, ylim2 / float(file.meanPhotoDict[file.refKey])*0.07)
+                        referencePDEvalue = 0.07
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey), file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        self.ax2.set_ylabel("PDE")
+                        print("UV ref")
 
                 meanPhotoDictKeys = [float(key) for key in file.meanPhotoDict.keys()]
                 self.ax.scatter(meanPhotoDictKeys, file.meanPhotoDict.values(), color = file.color, marker="x", label = f"{file.name}")
@@ -168,6 +178,17 @@ class App:
                     if file.PDErefVar.get() == 0:
                         self.ax2.get_yaxis().set_visible(False)
                         print("No ref")
+                    if file.PDErefVar.get() == 2:
+                        """UV. Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.07, ylim2 / float(file.meanPhotoDict[file.refKey])*0.07)
+                        referencePDEvalue = 0.07
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key)-Vbr for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey)-Vbr, file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        self.ax2.set_ylabel("PDE")
+                        print("UV ref")
 
 
                 meanPhotoDictKeys = [float(key)-Vbr for key in file.meanPhotoDict.keys()]

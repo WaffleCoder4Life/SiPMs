@@ -112,13 +112,13 @@ def peakCounter(voltData, peakHeight, distance, prominence, useOriginal = False)
     """Modified peak counter to only use left hand sided prominence for filtering peaks."""
     if useOriginal:
         fotons = oscilloPeakCounter(voltData, peakHeight, distance, prominence)
-        print(f"Original peak counter used")
+        #print(f"Original peak counter used")
     else:
         peaks, _ = find_peaks(voltData, height = peakHeight, distance = distance, prominence=0)
         _ , left_bases, _ = peak_prominences(voltData, peaks)
         left_prominences = []
-        print(f"Peaks before filter: {peaks}")
-        print(f"Left bases: {left_bases}")
+        #print(f"Peaks before filter: {peaks}")
+        #print(f"Left bases: {left_bases}")
         for i in range(len(peaks)):
             left_prominences.append(voltData[peaks[i]] - voltData[left_bases[i]])
         fotons = 0
@@ -133,10 +133,48 @@ def peakCounter(voltData, peakHeight, distance, prominence, useOriginal = False)
                 truePeakProm.append(left_prominences[i])
         print(f"{fotons} fotons detected")
         print(f"Peak locatins {truePeaks}")
-        print(f"Left base locations {leftProm}")
-        print(f"Peak LHS prominences {truePeakProm}")
+        #print(f"Left base locations {leftProm}")
+        #print(f"Peak LHS prominences {truePeakProm}")
 
         
+    return fotons
+
+def afterPulseCounter(voltData, peakHeight, distance, prominence, pulseMax):
+    """Records 5us before and after dark count. Only counts afterpulses if 5 us prior to trigger is empty of peaks."""
+    if max(voltData[9950:10050]) > pulseMax:
+        print("Max limit reached")
+        return None
+    if min(voltData) < -0.0015:
+        print("Random noise appeared")
+        return None
+
+    peaks, _ = find_peaks(voltData, height = peakHeight, distance = distance, prominence=0)
+    _ , left_bases, _ = peak_prominences(voltData, peaks)
+    left_prominences = []
+    #print(f"Peaks before filter: {peaks}")
+    #print(f"Left bases: {left_bases}")
+
+
+    for i in range(len(peaks)):
+        promHeight = voltData[peaks[i]] - voltData[left_bases[i]]
+        left_prominences.append(promHeight)
+        if peaks[i] < 9950 and promHeight > prominence:
+            print("Peaks prior to trigger appeared")
+            return None
+    fotons = 0
+    truePeaks = []
+    leftProm = []
+    truePeakProm = []
+    for i in range(len(left_prominences)):
+        if left_prominences[i] > prominence:
+            fotons += 1
+            truePeaks.append(peaks[i])
+            leftProm.append(left_bases[i])
+            truePeakProm.append(left_prominences[i])
+    print(f"{fotons} fotons detected")
+    print(f"Peak locations {truePeaks}")
+    #print(f"Left base locations {leftProm}")
+    #print(f"Peak LHS prominences {truePeakProm}")
     return fotons
 
 
@@ -175,7 +213,7 @@ def peakCounterSout(voltData, peakHeight, distance, prominence, rightProminence 
 
 
 
-def plotPhotonDistribution(photonDistribution):
+def plotPhotonDistribution(photonDistribution, plotShow = True):
     """Plots the poissonian distribution for mean number of photons in the pulse and the measured data."""
     photonCounts = Counter(photonDistribution) 
     print(photonCounts)
@@ -204,7 +242,8 @@ def plotPhotonDistribution(photonDistribution):
     plt.ylabel("counts")
     plt.legend()
     plt.xlim(-0.5, int(labels[-1])+1)
-    plt.show()
+    if plotShow:
+        plt.show()
     return poisson_lambda
 
 def createPhotonsDict():
@@ -219,6 +258,36 @@ def createPhotonsDict():
         poisson_lambda = 0
         for key in photonCounts:
             poisson_lambda += int(key)*int(photonCounts[key])
+        poisson_lambda /= len(photoDist)
+        biasVoltage = str(inputText(title=f"Enter BIAS VOLTAGE for file {file[-18:-3]}"))
+        meanPhotonsDict[biasVoltage] = poisson_lambda
+    meanPhotonsDict = dict(sorted(meanPhotonsDict.items()))
+    print(meanPhotonsDict)
+    return meanPhotonsDict
+
+def afterPulseProb(distDict):
+    keys = list(distDict.keys())
+    afterCount = 0
+    for i in range(len(keys)-1):
+        afterCount += distDict[keys[i+1]]*int(keys[i])
+    print(f"{sum(distDict.values())} photons with {afterCount} after pulses")
+    return afterCount / sum(distDict.values())
+
+
+def createPhotonsDictAfterPulseCompensated():
+    """UNFINISHED!! Counts the mean number of photons (lambda) from each photon distribution. Saves them to dictionary with bias voltage as key and lambda as value.
+    Keys are typed in manually. Returns the dictionary sorted by key values (bias voltages)."""
+    filePaths = ChooseFiles(initdir="./dataCollection", text = "Choose distributions to count mean number of photons")
+    meanPhotonsDict = {}
+    for file in filePaths:
+        photoDist = CSVtoPhotoDist(file)
+        photonCounts = Counter(photoDist)
+        afterPcounts = Counter(CSVtoPhotoDist(filePaths = ChooseFiles(initdir="./dataCollection", text = f"Choose afterpulse dist for {file[-18:-3]}")[0]))
+        afterPprob = afterPulseProb(afterPcounts)
+        # Counts mean number of photons in photonDistribution
+        poisson_lambda = 0
+        for key in photonCounts:
+            poisson_lambda += int(key)*int(photonCounts[key])*(1-afterPprob)
         poisson_lambda /= len(photoDist)
         biasVoltage = str(inputText(title=f"Enter BIAS VOLTAGE for file {file[-18:-3]}"))
         meanPhotonsDict[biasVoltage] = poisson_lambda

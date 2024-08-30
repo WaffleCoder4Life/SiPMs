@@ -20,8 +20,17 @@ def jsonToLists():
 
 def peakFinder1():
     timeDataList, voltDataList = jsonToLists()
-    for i in range(5):
-        plotPulse(timeDataList[i], voltDataList[i])
+    
+    
+    for i in range(10):
+        fig, axs = plt.subplots(2)
+        voltDiff = []
+        k = 2
+        while k < len(voltDataList[i]):
+            voltDiff.append((voltDataList[i][k]-voltDataList[i][k-2])*10)
+            k += 1
+        axs[0].plot(timeDataList[i], voltDataList[i], c = "red")
+        axs[1].plot(timeDataList[i][:-2], voltDiff, c = "blue")
         plt.show()
 
 

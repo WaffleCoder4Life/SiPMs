@@ -130,8 +130,8 @@ class DSOX1102GGUI:
                                     onvalue="1", offvalue="None", command=self.blueLEDWavGen)
         self.wavGenUVBut = Checkbutton(self.waveGenFrame, text="UV LED", variable=self.wavGenSettingsVar, 
                                     onvalue="2", offvalue="None", command=self.uvLEDWavGen)
-        self.wavGenBlueLowBut = Checkbutton(self.waveGenFrame, text="Blue LED Low", variable=self.wavGenSettingsVar, 
-                                    onvalue="3", offvalue="None", command=self.blueLEDWavGenLow)
+        self.wavGenBlueLowBut = Checkbutton(self.waveGenFrame, text="Blue LED Low Hz", variable=self.wavGenSettingsVar, 
+                                    onvalue="3", offvalue="None", command=self.blueLEDWavGenLowHz)
         self.wavGenBlueBut.grid(column=0, row=1)
         self.wavGenUVBut.grid(column=1, row=1)
         self.wavGenBlueLowBut.grid(column=0, row=2)
@@ -180,6 +180,9 @@ class DSOX1102GGUI:
 
         self.photoPlotBut = Button(self.PDEframe, text = "Plot", command = self.plotPhotoDist)
         self.photoPlotBut.grid(column=2, row=2)
+
+        self.photoDistBut = Button(self.PDEframe, text = "Photon distribution SlowMode", command = self.photonDistributionSlowMode)
+        self.photoDistBut.grid(column=2, row=3)
 
 
     def runStopCmd(self):
@@ -268,10 +271,10 @@ class DSOX1102GGUI:
             self.wavGenIsOn = False
             self.instr.command(":WGEN:OUTPut 0")
     
-    def blueLEDWavGenLow(self):
+    def blueLEDWavGenLowHz(self):
         self.waveGenVolt = 2.4
-        self.waveGenWidth = 120e-9
-        self.waveGenFreq = 500e3
+        self.waveGenWidth = 300e-9
+        self.waveGenFreq = 500
         self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for blue PDE measurements, turns it off
         self.waveGenOnOff()
 
@@ -320,6 +323,13 @@ class DSOX1102GGUI:
         name = data.inputText("csv file name")
         data.photoDistToCSV(name, photoDist, header = f"Wave gen settings: voltage {self.waveGenVolt}, width {self.waveGenWidth}, frequency {self.waveGenFreq}\nPeak finder settings: peak height {self.peakHeightValue}, peak distance {self.peakDistanceValue}, peak prominence {self.peakPromValue}\n Time axis: time range {self.timeRang}, time position {self.timePos}")
         
+    def photonDistributionSlowMode(self):
+        photoDist = self.instr.photonCountSlowmode(self.numberOfDatasetsValue, self.peakHeightValue, self.peakDistanceValue, self.peakPromValue, useOGcount=self.useOGcounterVar.get())
+        meanPhotons = data.plotPhotonDistribution(photoDist)
+        name = data.inputText("csv file name")
+        data.photoDistToCSV(name, photoDist, header = f"Wave gen settings: voltage {self.waveGenVolt}, width {self.waveGenWidth}, frequency {self.waveGenFreq}\nPeak finder settings: peak height {self.peakHeightValue}, peak distance {self.peakDistanceValue}, peak prominence {self.peakPromValue}\n Time axis: time range {self.timeRang}, time position {self.timePos}")
+        
+
     def plotPhotoDist(self):
         file = data.ChooseFiles(initdir="./dataCollection" ,text = "Choose photon distribution to plot")
         photoDist = data.CSVtoPhotoDist(file[0])
