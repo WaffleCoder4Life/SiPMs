@@ -50,6 +50,11 @@ class Keithley6487Pro:
 
         
         #===========================================FRAMES============================================================================================================
+        # Config columns and rows to spread to window size
+        self.root.columnconfigure(0, weight = 1)
+        self.root.rowconfigure(0, weight = 1)
+        self.root.rowconfigure(1, weight = 1)
+
 
         self.button_frame = Frame(self.root)
         self.button_frame.grid(column=0, row=1)
@@ -303,6 +308,9 @@ class Keithley6487Pro:
             self.instr.command(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
             self.instr.command(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
             self.instr.command(":SOUR:VOLT:STAT ON")
+            self.instr.command(f":SOUR:VOLT {0}")
+            sleep(0.1)
+            self.instr.command(f":SOUR:VOLT {self.voltage}") # Trying to avoid current spikes by turning voltage on with 0 V and then setting voltage
             self.output = 1
             self.running = True
             self.updateCurrent()
@@ -413,6 +421,7 @@ class PlotWindow:
         self.parent = parent
         self.new_window = tk.Toplevel(self.parent.root)
         self.new_window.title("IV plot")
+        self.timeAtStart = time()
 
         self.parent.instr.command(":FORM:ELEM READ") #CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
         self.parent.instr.command(":FORM:DATA ASCii") #CHOOSE DATA FORMAT
@@ -423,7 +432,7 @@ class PlotWindow:
         self.fig.set_figwidth(12)
         self.sc = self.ax.scatter([], [])
         self.ax.set_ylabel("Current / A")
-        self.ax.set_xticks([])
+        #self.ax.set_xticks([])
         
         self.xdata, self.ydata = [], []
         
@@ -440,8 +449,9 @@ class PlotWindow:
             print("Turn output on!!")
         
         else:
+            
 
-            self.xdata.append(len(self.xdata))
+            self.xdata.append(float(time()) - float(self.timeAtStart))
             self.ydata.append(self.parent.voltData)
         
             #self.ax.collections.clear()

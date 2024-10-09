@@ -109,30 +109,64 @@ def oscilloPeakCounter(voltData, peakHeight, distance, prominence):
     return len(peaks[0])
 
 def peakCounter(voltData, peakHeight, distance, prominence, useOriginal = False):
-    """Modified peak counter to only use left hand sided prominence for filtering peaks."""
+    """Modified peak counter. If left and right hand sided prominances higher than prominence -> good peak. If right hand sided prominance smaller, but next peak
+    height is 1 prominence higher -> good peak."""
     if useOriginal:
         fotons = oscilloPeakCounter(voltData, peakHeight, distance, prominence)
         #print(f"Original peak counter used")
     else:
         peaks, _ = find_peaks(voltData, height = peakHeight, distance = distance, prominence=0)
-        _ , left_bases, _ = peak_prominences(voltData, peaks)
+        _ , left_bases, right_bases = peak_prominences(voltData, peaks)
         left_prominences = []
-        #print(f"Peaks before filter: {peaks}")
+        right_prominences = []
+        print(f"Peaks before filter: {peaks}")
         #print(f"Left bases: {left_bases}")
+        #print(f"Number of peaks before filter: {len(peaks)}")
         for i in range(len(peaks)):
             left_prominences.append(voltData[peaks[i]] - voltData[left_bases[i]])
+            right_prominences.append(voltData[peaks[i]] - voltData[right_bases[i]])
         fotons = 0
-        truePeaks = []
-        leftProm = []
+        firstFiltPeaks = []
+        leftPromLoc = []
+        rightPromLoc = []
+        rightPromVal = []
         truePeakProm = []
         for i in range(len(left_prominences)):
-            if left_prominences[i] > prominence:
+            if left_prominences[i] >= prominence:
+                firstFiltPeaks.append(int(peaks[i]))
+                rightPromLoc.append(right_bases[i])
+                leftPromLoc.append(left_bases[i])
+                rightPromVal.append(right_prominences[i])
+            else:
+                asd = 0
+                print(f"Peak at {peaks[i]} invalid left prominance {left_prominences[i]}")
+        truePeaks = []
+        #print(f"Peaks after left prom filter: {firstFiltPeaks}")
+        print(f"Peaks after left prominence filter: {len(firstFiltPeaks)}")
+        for j in range(len(firstFiltPeaks)):
+            if rightPromVal[j] >= prominence:
                 fotons += 1
-                truePeaks.append(peaks[i])
-                leftProm.append(left_bases[i])
-                truePeakProm.append(left_prominences[i])
+                truePeaks.append(firstFiltPeaks[j])
+
+            # The last peak might be cut off and right prominence not valid, fixes this
+            elif j == len(firstFiltPeaks)-1 and rightPromVal[j] > 0.5 * prominence:
+                fotons += 1
+                truePeaks.append(firstFiltPeaks[j])
+            
+            else:
+                try:
+                    dataBetweenPeaks = voltData[firstFiltPeaks[j]:firstFiltPeaks[j+1]]
+                    lowestLow = min(dataBetweenPeaks)
+                    if voltData[firstFiltPeaks[j+1]] - lowestLow > prominence:
+                        fotons += 1
+                        truePeaks.append(firstFiltPeaks[j])
+                    else:
+                        asd = 0
+                        print(f"Peak at {firstFiltPeaks[j]} invalid, height {voltData[firstFiltPeaks[j]]:.6f}, next peak height {voltData[firstFiltPeaks[j+1]]:.6f}, height from lowest point {voltData[firstFiltPeaks[j+1]]-lowestLow:.6f}")
+                except:
+                    print("Some index error stuff")
         print(f"{fotons} fotons detected")
-        print(f"Peak locatins {truePeaks}")
+        #print(f"Peak locatins {truePeaks}")
         #print(f"Left base locations {leftProm}")
         #print(f"Peak LHS prominences {truePeakProm}")
 
@@ -213,35 +247,46 @@ def peakCounterSout(voltData, peakHeight, distance, prominence, rightProminence 
 
 
 
-def plotPhotonDistribution(photonDistribution, plotShow = True):
+def plotPhotonDistribution(photonDistribution, plotShow = True, poisMean = None):
     """Plots the poissonian distribution for mean number of photons in the pulse and the measured data."""
     photonCounts = Counter(photonDistribution) 
     print(photonCounts)
 
     # Counts mean number of photons in photonDistribution
     poisson_lambda = 0
+    max_key = 0
     for key in photonCounts:
         poisson_lambda += int(key)*int(photonCounts[key])
+        if int(key) > max_key:
+            max_key = int(key)
+    print(f"{poisson_lambda} total photons in {len(photonDistribution)} datasets.")
     poisson_lambda /= len(photonDistribution)
     print(f"Mean value of photons {poisson_lambda}")
 
     poisdata = np.random.poisson(poisson_lambda, 10000*len(photonDistribution)) #Create a distribution for counted mean number of photons
 
+    if poisMean is not None:
+        poisdata = np.random.poisson(poisMean, 10000*len(photonDistribution))
+
     labels, counts = np.unique(photonDistribution, return_counts=True)
-    plt.bar(labels, counts, width = 1, color = "darkorange", edgecolor = "black", align='center', linestyle = "--", label = "measurement")
-    plotLabels = [point for point in range(-1, int(labels[-1]+1), 1)]
-    plt.gca().set_xticks(plotLabels)
+    labels = [int(lab) for lab in labels]
+    counts = [int(cont) for cont in counts]
+    plt.bar(labels, counts,  color = "darkorange", edgecolor = "black", align='center', linestyle = "-", linewidth = 0, label = "measurement")
+    #plotLabels = [point for point in range(-1, int(labels[-1]+1), 1)] width = 1,
+    #plt.gca().set_xticks(plotLabels)
     
     labels2, counts2 = np.unique(poisdata, return_counts=True)
-    counts2 = [point/10000 for point in counts2[:18]]
+    labels2 = [int(lab) for lab in labels2]
+    counts2 = [int(cont) for cont in counts2]
+    counts2 = [point/10000 for point in counts2[:max_key+2]]
     labels2 = [point for point in range(-1, len(counts2), 1)]
     counts2.insert(0, 0)
-    plt.step(labels2, counts2, "k", linewidth = 1, where = "mid", label = "Poissonian fit $\\mathrm{\\lambda}$="+str(poisson_lambda))
+    #plt.step(labels2, counts2, "k", linewidth = 1, where = "mid", label = "Poissonian fit $\\mathrm{\\lambda}$="+str(poisson_lambda))
     
     plt.xlabel("photoelectron")
     plt.ylabel("counts")
     plt.legend()
-    plt.xlim(-0.5, int(labels[-1])+1)
+    #plt.xlim(-0.5, int(labels[-1])+1)
     if plotShow:
         plt.show()
     return poisson_lambda
@@ -315,23 +360,35 @@ def readDictJson(initdir = "./dataCollection", filePath = None):
             dicti = json.load(f)
         return dicti
 
-def relativePDEdict(meanPhotosDict):
+def relativePDEdict(meanPhotosDict, onsemi = True, bdVolt = 0):
     """Calculate relative PDE from mean number of photons. Uses the smallest photon count as the reference point for relative PDE.
     Argument: dict[voltage] = lambda. Returns dict[voltage] = relativePDE dictionary and the key for the reference point."""
-    lowLambda = 1000
-    refKey = None
-    relPDEdict = {}
-    for key in meanPhotosDict:
-        if meanPhotosDict[key] < lowLambda:
-            lowLambda = meanPhotosDict[key]
-            refKey = key
-    if lowLambda == 100:
-        print("Something went wrong")
+    if onsemi:
+        lowLambda = 1000
+        refKey = None
+        relPDEdict = {}
+        for key in meanPhotosDict:
+            if meanPhotosDict[key] < lowLambda:
+                lowLambda = meanPhotosDict[key]
+                refKey = key
+        if lowLambda == 1000:
+            print("Something went wrong")
+            return None
+        for key in meanPhotosDict:
+            relativePDE = meanPhotosDict[key] / lowLambda
+            relPDEdict[key] = relativePDE
+        return relPDEdict, refKey
+    elif bdVolt != 0:
+        lowLambda = meanPhotosDict[str(bdVolt + 4)]
+        refKey = str(bdVolt + 4)
+        relPDEdict = {}
+        for key in meanPhotosDict:
+            relativePDE = meanPhotosDict[key] / lowLambda
+            relPDEdict[key] = relativePDE
+        return relPDEdict, refKey
+    else:
+        print("What is the Vbd ??")
         return None
-    for key in meanPhotosDict:
-        relativePDE = meanPhotosDict[key] / lowLambda
-        relPDEdict[key] = relativePDE
-    return relPDEdict, refKey
 
 #===========================================IV sweep data handling======================================================================================
 
@@ -339,6 +396,7 @@ def relativePDEdict(meanPhotosDict):
 
 def IVscatter(voltList, curList, color):
     "Simple plot to check IV curve"
+    print(voltList[0], curList[0])
     plt.scatter(voltList, curList, s=10, marker='s', color=color)
     plt.show()
 

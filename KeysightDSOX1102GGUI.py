@@ -19,13 +19,15 @@ class DSOX1102GGUI:
         #self.instr.resetFactory() # Uncomment to reset
         self.instr.command("CHAN1:PROB 1") # Set the channel probes to 1
         self.instr.command("CHAN2:PROB 1")
+        self.instr.command(":TRIGger:SWEep NORMal")
+        self.instr.command(":TRIGGER:EDGE:SLOPE POSITIVE")
 
         # Set screen
         self.instr.setDisplay(1, 16e-3, 1)
-        self.instr.setDisplay(2, 8, 500e-9)
+        self.instr.setDisplay(2, 8, 400e-9)
         self.instr.setTriggerValue(0)
-        self.timeRang = 500e-9
-        self.timePos = 0
+        self.timeRang = 400e-9
+        self.timePos = 1.8e-7
         self.instr.command(":TIMebase:POSition " + str(self.timePos))
         self.instr.command(":STOP")
 
@@ -274,23 +276,23 @@ class DSOX1102GGUI:
     def blueLEDWavGenLowHz(self):
         self.waveGenVolt = 2.4
         self.waveGenWidth = 300e-9
-        self.waveGenFreq = 500
+        self.waveGenFreq = 1e3
         self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for blue PDE measurements, turns it off
-        self.waveGenOnOff()
+        
 
     def blueLEDWavGen(self):
         self.waveGenVolt = 2.4
         self.waveGenWidth = 300e-9
         self.waveGenFreq = 500e3
         self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for blue PDE measurements, turns it off
-        self.waveGenOnOff()
+        
     
     def uvLEDWavGen(self):
         self.waveGenVolt = 5
         self.waveGenWidth = 300e-9
-        self.waveGenFreq = 500e3
+        self.waveGenFreq = 1e3
         self.instr.setWaveGen(self.waveGenVolt, self.waveGenWidth, self.waveGenFreq)# Default settings for UV PDE measurements, turns it off
-        self.waveGenOnOff()
+        
     
 #===============Photon counting commands===============
     def setPeakHeight(self, event):
@@ -321,7 +323,7 @@ class DSOX1102GGUI:
         photoDist = self.instr.photonCount(self.numberOfDatasetsValue, self.peakHeightValue, self.peakDistanceValue, self.peakPromValue, useOGcount=self.useOGcounterVar.get())
         meanPhotons = data.plotPhotonDistribution(photoDist)
         name = data.inputText("csv file name")
-        data.photoDistToCSV(name, photoDist, header = f"Wave gen settings: voltage {self.waveGenVolt}, width {self.waveGenWidth}, frequency {self.waveGenFreq}\nPeak finder settings: peak height {self.peakHeightValue}, peak distance {self.peakDistanceValue}, peak prominence {self.peakPromValue}\n Time axis: time range {self.timeRang}, time position {self.timePos}")
+        data.photoDistToCSV(name, photoDist, header = f"Wave gen settings: voltage {self.waveGenVolt}, width {self.waveGenWidth}, frequency {self.waveGenFreq}, trigger {self.spinbox.get()}\nPeak finder settings: peak height {self.peakHeightValue}, peak distance {self.peakDistanceValue}, peak prominence {self.peakPromValue}\n Time axis: time range {self.timeRang}, time position {self.timePos}, Peak counter normal: {self.useOGcounterVar.get()}")
         
     def photonDistributionSlowMode(self):
         photoDist = self.instr.photonCountSlowmode(self.numberOfDatasetsValue, self.peakHeightValue, self.peakDistanceValue, self.peakPromValue, useOGcount=self.useOGcounterVar.get())

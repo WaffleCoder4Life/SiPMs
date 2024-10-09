@@ -90,12 +90,13 @@ class App:
         Label(sample_frame, text="Y limit max").grid(column=1, row=0)
         self.ylim_min_button = tk.Spinbox(sample_frame, command=self.updatePlot, from_=0, to=20, increment=0.5, wrap=True)
         self.ylim_min_button.delete(0, "end")
-        self.ylim_min_button.insert(0, 4)
+        self.ylim_min_button.insert(0, 0)
         self.ylim_min_button.grid(column=0, row=1)
         self.ylim_max_button = tk.Spinbox(sample_frame, command=self.updatePlot, from_=1, to=40, increment=0.5, wrap=True)
         self.ylim_max_button.delete(0, "end")
         self.ylim_max_button.insert(0, 9)
         self.ylim_max_button.grid(column=1, row=1)
+        
 
 
     def selectFiles(self):
@@ -136,22 +137,50 @@ class App:
                         relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
                         self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
                         self.ax2.scatter(float(file.refKey), file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
-                        self.ax2.set_ylabel("PDE")
-                        print("Blue ref")
+                        #self.ax2.set_ylabel("PDE")
+                        print("Blue ref (Onsemi)")
                     if file.PDErefVar.get() == 0:
                         self.ax2.get_yaxis().set_visible(False)
                         print("No ref")
                     if file.PDErefVar.get() == 2:
                         """UV. Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
                         self.ax2.get_yaxis().set_visible(True)
-                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.07, ylim2 / float(file.meanPhotoDict[file.refKey])*0.07)
-                        referencePDEvalue = 0.07
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.08, ylim2 / float(file.meanPhotoDict[file.refKey])*0.08)
+                        referencePDEvalue = 0.08
                         absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
                         relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
                         self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
                         self.ax2.scatter(float(file.refKey), file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
-                        self.ax2.set_ylabel("PDE")
-                        print("UV ref")
+                        #self.ax2.set_ylabel("PDE")
+                        print("UV ref (Onsemi)")
+                    if file.PDErefVar.get() == 3:
+                        """BLUE. Using relative PDE and PDE value for 4 overvoltage at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        referencePDEvalue = 0.29
+                        # Different protocol for hamamatsu
+                        file.relPDEdict, file.refKey = data.relativePDEdict(file.meanPhotoDict, False, bdVolt=file.bdVoltValue)
+
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue, ylim2 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue)
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey), file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        #self.ax2.set_ylabel("PDE")
+                        print("Blue ref (Hamamatsu)")
+                    if file.PDErefVar.get() == 4:
+                        """UV. Using relative PDE and PDE value for 4 overvoltage at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        referencePDEvalue = 0.17
+                        # Different protocol for hamamatsu
+                        file.relPDEdict, file.refKey = data.relativePDEdict(file.meanPhotoDict, False, bdVolt=file.bdVoltValue)
+
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue, ylim2 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue)
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key) for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey), file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        #self.ax2.set_ylabel("PDE")
+                        print("Blue ref (Hamamatsu)")
 
                 meanPhotoDictKeys = [float(key) for key in file.meanPhotoDict.keys()]
                 self.ax.scatter(meanPhotoDictKeys, file.meanPhotoDict.values(), color = file.color, marker="x", label = f"{file.name}")
@@ -173,7 +202,7 @@ class App:
                         relPDEdictKeys = [float(key)-Vbr for key in file.relPDEdict.keys()]
                         self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
                         self.ax2.scatter(float(file.refKey)-Vbr, file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
-                        self.ax2.set_ylabel("PDE")
+                        #self.ax2.set_ylabel("PDE")
                         print("Blue ref")
                     if file.PDErefVar.get() == 0:
                         self.ax2.get_yaxis().set_visible(False)
@@ -181,14 +210,42 @@ class App:
                     if file.PDErefVar.get() == 2:
                         """UV. Using relative PDE and PDE value for 27 V at room temperature given by manufactorer, plots the PDE on second axis"""
                         self.ax2.get_yaxis().set_visible(True)
-                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.07, ylim2 / float(file.meanPhotoDict[file.refKey])*0.07)
-                        referencePDEvalue = 0.07
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*0.08, ylim2 / float(file.meanPhotoDict[file.refKey])*0.08)
+                        referencePDEvalue = 0.08
                         absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
                         relPDEdictKeys = [float(key)-Vbr for key in file.relPDEdict.keys()]
                         self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
                         self.ax2.scatter(float(file.refKey)-Vbr, file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
-                        self.ax2.set_ylabel("PDE")
+                        #self.ax2.set_ylabel("PDE")
                         print("UV ref")
+                    if file.PDErefVar.get() == 3:
+                        """BLUE. Using relative PDE and PDE value for 4 overvoltage at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        referencePDEvalue = 0.29
+                        # Different protocol for hamamatsu
+                        file.relPDEdict, file.refKey = data.relativePDEdict(file.meanPhotoDict, False, bdVolt=file.bdVoltValue)
+
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue, ylim2 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue)
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key)-Vbr for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey)-Vbr, file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        #self.ax2.set_ylabel("PDE")
+                        print("Blue ref (Hamamatsu)")
+                    if file.PDErefVar.get() == 4:
+                        """UV. Using relative PDE and PDE value for 4 overvoltage at room temperature given by manufactorer, plots the PDE on second axis"""
+                        self.ax2.get_yaxis().set_visible(True)
+                        referencePDEvalue = 0.17
+                        # Different protocol for hamamatsu
+                        file.relPDEdict, file.refKey = data.relativePDEdict(file.meanPhotoDict, False, bdVolt=file.bdVoltValue)
+                        
+                        self.ax2.set_ylim(ylim1 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue, ylim2 / float(file.meanPhotoDict[file.refKey])*referencePDEvalue)
+                        absolutePDEvalues = [relPDE * referencePDEvalue for relPDE in file.relPDEdict.values()]
+                        relPDEdictKeys = [float(key)-Vbr for key in file.relPDEdict.keys()]
+                        self.ax2.scatter(relPDEdictKeys, absolutePDEvalues, color = file.color, marker="x", label = f"{file.name}")
+                        self.ax2.scatter(float(file.refKey)-Vbr, file.relPDEdict[file.refKey]*referencePDEvalue, s=80, facecolors='none', edgecolors=file.color, label="Reference point")
+                        #self.ax2.set_ylabel("PDE")
+                        print("Blue ref (Hamamatsu)")
 
 
                 meanPhotoDictKeys = [float(key)-Vbr for key in file.meanPhotoDict.keys()]
@@ -202,7 +259,7 @@ class App:
         self.canvas.draw()
 
 
-
+    
 
     def on_frame_configure(self, event):
         self.paramcanvas.configure(scrollregion=self.paramcanvas.bbox("all"))
@@ -273,13 +330,17 @@ class File:
         self.pdeRefBut = Checkbutton(self.pdeRef_frame, command=self.useAsRefPDE, variable=self.uselessVar)
         self.pdeRefBut.grid(row=0, column=1)
 
-        self.PDErefVar = tk.IntVar(value = 0) # 0 non, 1 blue, 2 uv
+        self.PDErefVar = tk.IntVar(value = 0) # 0 non, 1 blue Onsemi, 2 uv Onsemi
         #self.plotRelPDEButton = Checkbutton(self.pdeRef_frame, text = f"None", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=0)
         #self.plotRelPDEButton.grid(row = 1, column = 0)
-        self.plotRelBluePDEButton = Checkbutton(self.pdeRef_frame, text = f"Blue", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=1)
+        self.plotRelBluePDEButton = Checkbutton(self.pdeRef_frame, text = f"Blue Onsemi", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=1)
         self.plotRelBluePDEButton.grid(row = 1, column = 1)
-        self.RelPDEuvButton = Checkbutton(self.pdeRef_frame, text = f"UV", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=2)
+        self.RelPDEuvButton = Checkbutton(self.pdeRef_frame, text = f"UV Onsemi", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=2)
         self.RelPDEuvButton.grid(row=1, column=2)
+        self.plotRelBluePDEButtonHama = Checkbutton(self.pdeRef_frame, text = f"Blue Hama", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=3)
+        self.plotRelBluePDEButtonHama.grid(row = 2, column = 1)
+        self.RelPDEuvButtonHama = Checkbutton(self.pdeRef_frame, text = f"UV Hama", command=self.relativePDEplot, variable = self.PDErefVar, onvalue=4)
+        self.RelPDEuvButtonHama.grid(row=2, column=2)
 
         
         # Rename file (and plot label)

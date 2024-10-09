@@ -5,6 +5,7 @@ import dataHandling as data
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import *
+from collections import Counter
 
 """ rm = visa.ResourceManager()
 resut = rm.list_resources()
@@ -43,14 +44,15 @@ plt.plot(timeee, voltage)
 plt.show() """
 
 
-""" lotOfData = {}
-for i in range(500):
+""" oscillo = DSOX1102G()
+lotOfData = {}
+for i in range(50):
     oscillo.singleRun()
     timeee, dataa = oscillo.saveData(1)
     timeee = list(timeee)
     lotOfData[i] = timeee, dataa
-data.writeDictJson(lotOfData)
- """
+data.writeDictJson(lotOfData) """
+
 
 
 # After pulsing
@@ -73,19 +75,24 @@ print(data.afterPulseProb(afterPulse26Vdarkkk))
 
 #print(data.createPhotonsDictAfterPulseCompensated())
 
+""" 
+oscillo = DSOX1102G()
 
+apTrainDict = {}
 
-""" #oscillo.singleRun()
+segIndex = 1
+while segIndex <= 50:
+    oscillo.command(f":ACQuire:SEGMented:INDex {segIndex}")
+    time.sleep(0.1)
+    timeDat, voltage = oscillo.saveData(channel = 1)
+    timeDat = [dat - 50e-6 for dat in timeDat]
+    apTrainDict[segIndex] = (timeDat, voltage)
+    plt.plot(timeDat, voltage, color = "orange")
+    
+    segIndex += 1
 
-timeAx1, volt1 = oscillo.saveData(1)
-fig, ax1 = plt.subplots()
-ax2 = ax1.twinx()
-ax1.plot(timeAx1, volt1, color = "yellow")
-
-timeax2, volt2 = oscillo.saveData(2)
-ax2.plot(timeax2, volt2, color = "green")
-
-plt.show() """
+plt.show()
+data.writeDictJson(apTrainDict) """
 
 """ photoDist = oscillo.photonCount(5, 12e-3, 10, 7e-3)
 print(photoDist)
@@ -101,21 +108,24 @@ data.plotPhotonDistribution(photoDistNew) """
 # Distributions to a plot -protocol
 
 # Read files and save photonLambda[volt] = lambda dictionary to a json file
-#meanLED = data.createPhotonsDict()
+meanLED = data.createPhotonsDict()
 #data.writeDictJson(meanLED)
-#print(meanLED)
-
-darkCount = {"27": 0.594, "27.5":0.6428,  "28": 0.6916, "28.5":0.7632, "29": 0.8348, "29.5": 0.9299, "30": 1.0252}
-UVphotons = {"27": 5.3936, "27.5": 5.624, "28": 5.8636, "28.5": 6.0242, "29": 6.3216, "29.5": 6.5682, "30": 6.711}
-
-UVdarkCountComp = {}
-for key in darkCount:
-    UVdarkCountComp[key] = UVphotons[key] - darkCount[key]
-
-print(UVdarkCountComp)
+print(meanLED)
 
 
-""" photons = {"22.9": 0.8972, "23.4": 1.1428, "23.9": 1.41, "24.4": 1.6696, "24.9": 2.1584, "25.4": 3.1656, "25.9": 4.9528}
+
+
+""" dark = {'53.3': 0.536, '53.8': 0.654, '54.3': 0.766, '54.8': 0.89, '55.3': 1.027, '55.8': 1.074, '56.3': 1.255, '56.8':1.268}
+base = {"53.3": 3.2468, "53.8": 3.6668, "54.3": 3.8444, "54.8": 3.91, "55.3": 4.2448, "55.8": 4.492, "56.3": 4.694, "56.8": 4.9292}
+
+legit = [key1 - key2 for key1, key2 in zip(base.values(), dark.values())]
+print(legit) """
+
+
+
+
+
+""" photons = {"22.9" : 0.2248, "23.4": 0.3088, "23.9": 0.3776, "24.4": 0.4808, "24.9": 0.6612, "25.4": 0.8748, "25.9": 1.442}
 ap = {"22.9": 1.191, "23.4": 1.195, "23.9": 1.237, "24.4": 1.377, "24.9": 1.553, "25.4": 1.714, "25.9": 2.105}
 photonsCompens = {}
 
@@ -146,15 +156,40 @@ print(photoDict)
 relPDEdict, refKey = data.relativePDEdict(photoDict)
 print(relPDEdict)
 print(refKey)
+ """
 
+
+
+
+# Save pulse shapes
+""" oscillo = DSOX1102G()
+timeee, volt = oscillo.saveData(1)
+tempDick = {}
+for t, v in zip(timeee, volt):
+    tempDick[t] = v
+data.writeDictJson(tempDick, initdir="C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU") """
+
+
+
+# Plot pulse shapes
+""" doct  = data.readDictJson("C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU")
+timeDat = [float(key) for key in doct.keys()]
+voltDat = [float(val) for val in doct.values()]
+plt.plot(timeDat, voltDat, color = "red")
+
+doct2  = data.readDictJson("C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU")
+timeDat = [float(key) for key in doct2.keys()]
+voltDat = [float(val) for val in doct2.values()]
+
+plt.plot(timeDat, voltDat)
+plt.show()
  """
 
 # save image protocol
-
-""" oscillo = DSOX1102G() 
+""" 
+oscillo = DSOX1102G() 
 testImage = oscillo.saveImage()
 path = data.ChooseFolder()
-data.saveOscilloImage(path, "1KfoutNoise", testImage)
- """
+data.saveOscilloImage(path, "1060Ohm1_9VoverVoltBadPDEtunnelingExplodes", testImage) """
 
 

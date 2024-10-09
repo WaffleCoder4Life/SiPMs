@@ -3,6 +3,7 @@ import numpy as np
 from time import sleep
 import time
 import dataHandling as data
+import matplotlib.pyplot as plt
 
 class pyvisaResource:
     """Parent class for pyvisa properties and connections."""
@@ -54,15 +55,15 @@ class Keithley6487(pyvisaResource):
         self.instr.write("SYST:ZCH OFF")
 
         # Initialize values
-        self.instr.write(":CURR:RANG 0.001") # Set current range
-        self.instr.write(f":SOUR:VOLT:RANG 50")  # Set voltage range
+        self.instr.write("SENS:CURR:RANG 0.001") # Set current range
+        self.instr.write(f":SOUR:VOLT:RANG 500")  # Set voltage range
         self.instr.write(":SOUR:VOLT:ILIM 2.5e-3") # Set current limit
         self.instr.write(":FORM:ELEM READ") # CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
         self.instr.write(":FORM:DATA ASCii") # Choose data format
 
 
         self.currRange = 0.001
-        self.voltRange = 50
+        self.voltRange = 500
         self.currLimit = 25e-3
         self.voltage = 0
 
@@ -92,11 +93,199 @@ class Keithley6487(pyvisaResource):
 # ---- Getters and Setters for basic properties ----
 
     def get_currRange(self):
-        self.instr.write(":CURR:RANG?")
+        self.instr.write("SENS:CURR:RANG?")
         return float(self.instr.read())
 
     def set_currRange(self, value):
-        self.instr.write(":CURR:RANG " + str(value))
+        self.instr.write("SENS:CURR:RANG " + str(value))
+        self.currRange = self.get_currRange()
+
+    def get_voltRange(self):
+        self.instr.write(":SOUR:VOLT:RANG?")
+        return float(self.instr.read())
+
+    def set_voltRange(self, value):
+        """Allowed values 10 and 50. If other value is given, sets the value to the next lower allowed value."""
+        if value < 50:
+            self.instr.write(f":SOUR:VOLT:RANG 10")
+        elif 50 <= value:
+            self.instr.write(f":SOUR:VOLT:RANG 50")
+        elif 500 <= value:
+            self.instr.write(f":SOUR:VOLT:RANG 500")
+        self.voltRange = self.get_voltRange()
+
+    def get_currLimit(self):
+        self.instr.write(":SOUR:VOLT:ILIM?")
+        return float(self.instr.read())
+
+    def set_currLimit(self, value):
+        """Allowed values are 25uA, 250uA and 2.5mA. If some other values is given sets the value to the next lower
+        allowed value."""
+        if value < 250E-6:
+            self.instr.write(":SOUR:VOLT:ILIM 25e-6")
+        elif 250E-6 <= value < 2.5E-3:
+            self.instr.write(":SOUR:VOLT:ILIM 250e-6")
+        elif 2.5E-3 <= value < 2.5E-2:
+            self.instr.write(":SOUR:VOLT:ILIM 2.5e-3")
+        elif 25E-3 <= value:
+            self.instr.write(":SOUR:VOLT:ILIM 25e-3")
+        sleep(0.2)
+        self.currLimit = self.get_currLimit()
+
+    def get_voltage(self):
+        self.instr.write(":SOUR:VOLT?")
+        return float(self.instr.read())
+
+    def set_voltage(self, value):
+        self.instr.write(f":SOUR:VOLT {value}")
+        self.voltage = self.get_voltage()
+
+
+    def IVsweep(self, startV, endV, stepV, mesPerV = 1, quickie: bool = False, reverse: bool = False, extraFunctio = None, args = None):
+        """Perfom IV-sweep from 'startV' to 'endV'. Takes 'mesPerV' measurements every 'stepV' voltage and returns the average current for each voltage.
+           Returns the data as two lists; voltage, current. stepV minimum allowed value for 50 V range 0.001 V. Optional parameters; quickie (True/False) overrun 
+           stepV and mesPerV for a quick scan with 10 measurement points. Useful for locating breakdown voltage and tuning current limit etc.
+           reverse (True/False) to execute the sweep in reverse. IF ERRORS OCCUR; DELETE ALL EXTRA STUFF"""
+        if quickie:
+            self.set_voltage(0) # avoid current spikes
+            if self.isOn == False:
+                self.powerOn()
+            voltage = startV
+            stepV = (endV - startV) / 10
+            currList, voltList = [], []
+            self.set_voltage(voltage/2) #
+            sleep(0.1)
+            self.readCurrentASCii() # These two make sure the first measurement is also correct
+            while voltage <= endV:
+                self.set_voltage(voltage)
+                sleep(0.1)
+                voltList.append(voltage)
+                currList.append(self.readCurrentASCii())
+                voltage += stepV
+            self.powerOff()
+            return voltList, currList
+        else:
+            if reverse:
+                if self.isOn == False:
+                    self.powerOn()
+                voltage = endV
+                voltList, currList = [], []
+                self.set_voltage(voltage/2) #
+                sleep(0.1)
+                self.set_voltage(voltage)
+                sleep(0.1)
+                self.readCurrentASCii() # These two make sure the first measurement is also correct
+                while startV <= voltage:
+                    if self.aborted:
+                        self.aborted = False
+                        break
+                    self.set_voltage(voltage)
+                    sleep(0.5) # sleepy time
+                    tempCurr = []
+                    for i in range(mesPerV): # loop for average current
+                        tempCurr.append(self.readCurrentASCii()) # single current measurement
+                        sleep(0.2)
+                    currList.append(sum(tempCurr)/(len(tempCurr)))
+                    voltList.append(voltage)
+                    voltage -= stepV
+                currList.reverse()
+                voltList.reverse()
+                return voltList, currList
+
+            else:
+                self.set_voltage(0) # avoid current spikes
+                if self.isOn == False:
+                    self.powerOn()
+                voltage = startV
+                voltList, currList = [], []
+                self.set_voltage(voltage/2) #
+                sleep(0.1)
+                self.set_voltage(voltage) #
+                sleep(0.1)
+                self.readCurrentASCii() # These two make sure the first measurement is also correct
+                extraList = []
+                while voltage <= endV:
+                    if self.aborted:
+                        self.aborted=False
+                        break
+                    self.set_voltage(voltage)
+                    sleep(0.5) # sleepy time
+                    if extraFunctio is not None:
+                        if args is not None:
+                            extraList.append((voltage, extraFunctio(*args)))
+                        else:
+                            pass
+                            #NOT WORKING
+                    tempCurr = []
+                    for i in range(mesPerV): # loop for average current
+                        tempCurr.append(self.readCurrentASCii()) # single current measurement
+                        sleep(0.2)
+                    currList.append(sum(tempCurr)/(len(tempCurr)))
+                    voltList.append(voltage)
+                    voltage += stepV
+                self.powerOff()
+                if extraFunctio is not None:
+                    return voltList, currList, extraList
+                else:
+                    return voltList, currList
+                    
+
+
+class Keithley2410(pyvisaResource):
+    def __init__(self):
+        # VISA CONNECTIONS
+        pyvisaResource.__init__(self)
+        self.connectDevice("MODEL 2410")
+
+        #RUN THESE AFTER START OR GET FUCKED
+        self.instr.write("*RST")  #Return 6487 to GPIB defaults, USE BEFORE DISCONNECTING SIGNALS
+        self.instr.write("SYST:ZCH OFF")
+
+        # Initialize values
+        self.instr.write(":SENS:FUNC 'CURR'")
+        self.instr.write(":SENS:CURR:RANG 0.001") # Set current range
+        self.instr.write(f":SOUR:VOLT:RANG 500")  # Set voltage range
+        self.instr.write(":SOUR:VOLT:ILIM 2.5e-3") # Set current limit
+        self.instr.write(":FORM:ELEM READ") # CURRENT/RESISTANCE, TIME FROM SWITCH ON, STATUS (idk), SOURCE VOLTAGE
+        self.instr.write(":FORM:DATA ASCii") # Choose data format
+
+
+        self.currRange = 0.001
+        self.voltRange = 500
+        self.currLimit = 25e-3
+        self.voltage = 0
+
+        self.isOn = False
+
+
+
+    def closeResource(self):
+        self.instr.write(":SOUR:VOLT:STAT OFF")
+        self.instr.close()
+
+    def powerOn(self):
+        self.instr.write(":SOUR:VOLT:STAT ON")
+        self.isOn = True
+    def powerOff(self):
+        self.instr.write(":SOUR:VOLT:STAT OFF")
+        self.isOn = False
+
+    def readCurrentASCii(self):
+        """Triggers a single measurement and returns the current as a float"""
+        self.instr.write(":INIT") # Triggers a measurement
+        sleep(0.1)
+        self.instr.write(":SENS:DATA?") # Asks for data, only stores one set of data
+        sleep(0.1)
+        return float(self.instr.read()) # Returns the data read from the device
+
+# ---- Getters and Setters for basic properties ----
+
+    def get_currRange(self):
+        self.instr.write("SENS:CURR:RANG?")
+        return float(self.instr.read())
+
+    def set_currRange(self, value):
+        self.instr.write("SENS:CURR:RANG " + str(value))
         self.currRange = self.get_currRange()
 
     def get_voltRange(self):
@@ -217,7 +406,6 @@ class Keithley6487(pyvisaResource):
                 else:
                     return voltList, currList
                     
-
         
     
 class DSOX1102G(pyvisaResource):
@@ -312,11 +500,13 @@ class DSOX1102G(pyvisaResource):
     
     def photonCount(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1, useOGcount = False, filterNegative = False):
         """Counts pulses from screen numberOfDatasets times and returns an array with photon count of each set."""
-        self.instr.write(":RUN")
+        #self.instr.write(":RUN")
 
         photonDistribution = np.empty(numberOfDatasets)
         i = 0
         while i < numberOfDatasets:
+            self.instr.write(":SINGLE") # Single shot and check when ready
+            sleep(0.1)
             try:
                 if filterNegative == True:
                     voltage = self.saveData(channel = channel)[1]
@@ -331,9 +521,15 @@ class DSOX1102G(pyvisaResource):
                     voltage = self.saveData(channel = channel)[1]
                     photonDistribution[i] = data.peakCounter(voltage, peakHeight=peakHeight, distance=distance, prominence=prominence, useOriginal=useOGcount)
                     print(f"Measurement {i/numberOfDatasets*100} %")
+
+                    # Use this to check no noise in DCR measurements
+                    if photonDistribution[i] > 4:
+                        timeDat = self.saveData(channel= channel)[0]
+                        plt.plot(timeDat, voltage)
                     i += 1
             except visa.VisaIOError:
                 print("No data to read yet:(")
+        plt.show()
         return photonDistribution
     
     def photonCountSlowmode(self, numberOfDatasets, peakHeight, distance, prominence, name = "photonDistribution", channel = 1, useOGcount = False):
