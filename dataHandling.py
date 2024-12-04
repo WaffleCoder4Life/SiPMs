@@ -173,9 +173,10 @@ def peakCounter(voltData, peakHeight, distance, prominence, useOriginal = False)
         
     return fotons
 
-def afterPulseCounter(voltData, peakHeight, distance, prominence, pulseMax):
-    """Records 5us before and after dark count. Only counts afterpulses if 5 us prior to trigger is empty of peaks."""
-    if max(voltData[9950:10050]) > pulseMax:
+def afterPulseTimeDist(voltData, peakHeight, distance, prominence, pulseMax):
+    """Records 20us before and after dark count. Only counts afterpulses if 20 us prior to trigger is empty of peaks."""
+    midPoint = int(len(voltData) / 2)
+    if max(voltData[midPoint - 50 : midPoint + 50]) > pulseMax:
         print("Max limit reached")
         return None
     if min(voltData) < -0.0015:
@@ -192,7 +193,7 @@ def afterPulseCounter(voltData, peakHeight, distance, prominence, pulseMax):
     for i in range(len(peaks)):
         promHeight = voltData[peaks[i]] - voltData[left_bases[i]]
         left_prominences.append(promHeight)
-        if peaks[i] < 9950 and promHeight > prominence:
+        if peaks[i] < midPoint - 50 and promHeight > prominence:
             print("Peaks prior to trigger appeared")
             return None
     fotons = 0
@@ -202,14 +203,14 @@ def afterPulseCounter(voltData, peakHeight, distance, prominence, pulseMax):
     for i in range(len(left_prominences)):
         if left_prominences[i] > prominence:
             fotons += 1
-            truePeaks.append(peaks[i])
+            truePeaks.append(int(peaks[i]))
             leftProm.append(left_bases[i])
             truePeakProm.append(left_prominences[i])
     print(f"{fotons} fotons detected")
     print(f"Peak locations {truePeaks}")
     #print(f"Left base locations {leftProm}")
     #print(f"Peak LHS prominences {truePeakProm}")
-    return fotons
+    return truePeaks
 
 
 def peakCounterSout(voltData, peakHeight, distance, prominence, rightProminence = 0.0008, useOriginal = False):

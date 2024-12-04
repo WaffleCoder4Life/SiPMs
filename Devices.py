@@ -523,7 +523,7 @@ class DSOX1102G(pyvisaResource):
                     print(f"Measurement {i/numberOfDatasets*100} %")
 
                     # Use this to check no noise in DCR measurements
-                    if photonDistribution[i] > 4:
+                    if photonDistribution[i] >= 3:
                         timeDat = self.saveData(channel= channel)[0]
                         plt.plot(timeDat, voltage)
                     i += 1
@@ -603,6 +603,31 @@ class DSOX1102G(pyvisaResource):
                         break
                     continue
         return photonDistribution
+    
+    def afterPulseTimeDistCommand(self, numberOfDatasets, peakHeight, distance, prominenceMin, pulseMax, name = "photonDistribution", channel = 1):
+        """Measure numberOfDatasets times and returns an array with afterpulse locations of each. Filters out if 20 us prior to trigger includes photons
+        and only counts 1 P.E. dark counts."""
+        apLocations = []
+        i = 0
+        while i < numberOfDatasets:
+            self.instr.write(":SINGLE") # Single shot and check when ready
+            sleep(0.1)
+            try:
+                voltage = self.saveData(channel = channel)[1]
+                afterPulseLocations = data.afterPulseTimeDist(voltage, peakHeight=peakHeight, distance=distance, prominence=prominenceMin, pulseMax=pulseMax)
+                print(afterPulseLocations)
+                if afterPulseLocations is not None:
+                    for ap in afterPulseLocations:
+                        x = 0
+                        if ap > (len(voltage) / 2) + 7: # Filters out the trigger darkcount
+                            apLocations.append(ap)
+                            x = 1
+                        if x == 1:
+                            print(f"Measurement {i/numberOfDatasets*100} %")
+                            i += 1
+            except visa.VisaIOError:
+                print("No data to read yet:(")
+        return apLocations
 
 
     def saveImage(self):

@@ -29,21 +29,33 @@ def afterPulseSweep1(oscillo, power, startVolt, endVolt, waveGenSettings:list, o
 
 
 def afterPulseCounting(oscillo, pulseHeight, pulseDist, pulsePromi, pulseMax, name):
-    #tim, volt = oscillo.saveData(1)
-    #print(len(volt))
+    #oscillo.command(" :WAVeform:POINts 20000")
+    tim, volt = oscillo.saveData(1)
+    print(len(volt))
     dist = oscillo.afterPulseProb(1000, pulseHeight, pulseDist, pulsePromi, pulseMax)
-    data.photoDistToCSV(name, dist, f"New protocol; 5 us prior to trigger must be empty, triggered on 1 P.E. dark counts, counting pulses from 5 us window.\n pulse height {pulseHeight}, pulse distance {pulseDist}, pulse prominence {pulsePromi} and max pulse {pulseMax}")
+    data.photoDistToCSV(name, dist, f"New protocol; 15 us prior to trigger must be empty, triggered on 1 P.E. dark counts, counting pulses from 15 us window.\n pulse height {pulseHeight}, pulse distance {pulseDist}, pulse prominence {pulsePromi} and max pulse {pulseMax}")
     data.plotPhotonDistribution(dist)
+
+def afterPulseTimeDist(oscillo, pulseHeight, pulseDist, pulsePromi, pulseMax, name):
+    #oscillo.command(" :WAVeform:POINts 60000")
+    tim, volt = oscillo.saveData(1)
+    print(len(volt))
+    apLocations = oscillo.afterPulseTimeDistCommand(2000, pulseHeight, pulseDist, pulsePromi, pulseMax)
+    print(apLocations)
+    data.photoDistToCSV(name, apLocations, f"New protocol; 30 us prior to trigger must be empty, triggered on 1 P.E. dark counts, saves AP locations during 30 us window.\n pulse height {pulseHeight}, pulse distance {pulseDist}, pulse prominence {pulsePromi} and max pulse {pulseMax}")
+    #data.plotPhotonDistribution(dist)
+    
 
 
 
 def main():
     oscillo = DSOX1102G()
     sleep(1)
-    power = Keithley6487()
+    #power = Keithley6487()
     sleep(1)
-    afterPulseSweep1(oscillo = oscillo, power = power, startVolt= 23, endVolt=26, waveGenSettings= waveGenSet, oscilloSettings= oscilloSet, extraFunctio1 = oscillo.photonCount, peakCountSettings=photoSettings)
-    #afterPulseCounting(oscillo, 0.001, 10, 0.001, 0.004, "Dale1KafterPulseDist22_9V")
+    #afterPulseSweep1(oscillo = oscillo, power = power, startVolt= 23, endVolt=26, waveGenSettings= waveGenSet, oscilloSettings= oscilloSet, extraFunctio1 = oscillo.photonCount, peakCountSettings=photoSettings)
+    #afterPulseCounting(oscillo, 0.001, 10, 0.001, 0.002, "4800OhmKafterPulseDist15us44V")
+    afterPulseTimeDist(oscillo, 0.001, 10, 0.001, 0.002, "5400OhmAPlocations30us44V")
 
 if __name__ == "__main__":
     main()
