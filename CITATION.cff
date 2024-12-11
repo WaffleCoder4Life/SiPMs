@@ -1,0 +1,19 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: SiPM measurement scripts & data collection
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Tom
+    family-names: Kiilerich
+    email: tckiil@utu.fi
+    affiliation: University of Turku
+repository-code: 'https://github.com/WaffleCoder4Life/SiPMs'
+abstract: >-
+  (Unsorted) Data collection and measurement scripts for our
+  silicon photomultiplier (SiPM) experiments.
+license: MIT
