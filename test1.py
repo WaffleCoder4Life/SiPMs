@@ -108,9 +108,9 @@ data.plotPhotonDistribution(photoDistNew) """
 # Distributions to a plot -protocol
 
 # Read files and save photonLambda[volt] = lambda dictionary to a json file
-meanLED = data.createPhotonsDict()
+#meanLED = data.createPhotonsDict()
 #data.writeDictJson(meanLED)
-print(meanLED)
+#print(meanLED)
 
 
 
@@ -172,24 +172,24 @@ data.writeDictJson(tempDick, initdir="C:/Users/hydrogen/Documents/Tom_Sampsa/SiP
 
 
 # Plot pulse shapes
-""" doct  = data.readDictJson("C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU")
+doct  = data.readDictJson("C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU")
 timeDat = [float(key) for key in doct.keys()]
 voltDat = [float(val) for val in doct.values()]
 plt.plot(timeDat, voltDat, color = "red")
 
-doct2  = data.readDictJson("C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU")
+""" doct2  = data.readDictJson("C:/Users/hydrogen/Documents/Tom_Sampsa/SiPMs/SiPMs/dataCollection/HAMAMATSU")
 timeDat = [float(key) for key in doct2.keys()]
-voltDat = [float(val) for val in doct2.values()]
+voltDat = [float(val) for val in doct2.values()] """
 
 plt.plot(timeDat, voltDat)
 plt.show()
- """
+
 
 # save image protocol
-""" 
-oscillo = DSOX1102G() 
+
+""" oscillo = DSOX1102G() 
 testImage = oscillo.saveImage()
 path = data.ChooseFolder()
-data.saveOscilloImage(path, "1060Ohm1_9VoverVoltBadPDEtunnelingExplodes", testImage) """
-
+data.saveOscilloImage(path, "afterpulseNoXtalkHama", testImage)
+ """
 
